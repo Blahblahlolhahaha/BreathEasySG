@@ -1,40 +1,134 @@
-// PLACEHOLDER — Auth & Settings: keeps track of whether the user is logged in. Uses a fake login for now; Cognito goes here.
-import { createContext, useContext, useState } from 'react'
+// Keeps track of whether the user is logged in, using Amazon Cognito (sign up, confirm email, log in, log out).
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  AuthenticationDetails,
+  CognitoUser,
+  CognitoUserAttribute,
+  CognitoUserPool,
+} from "amazon-cognito-identity-js";
 
-const KEY = 'be.placeholder.signedIn'
-const AuthContext = createContext(null)
+const poolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
+const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
+const userPool =
+  poolId && clientId
+    ? new CognitoUserPool({ UserPoolId: poolId, ClientId: clientId })
+    : null;
 
-// PLACEHOLDER — Auth & Settings: Amazon Cognito session (sign up, log in, log out). Keep the same value shape.
-// `loading` must stay true while Cognito restores a saved session, so a page refresh doesn't bounce to /login.
-export function AuthProvider({ children }) {
-  const [signedIn, setSignedIn] = useState(() => {
-    try {
-      return sessionStorage.getItem(KEY) === '1'
-    } catch {
-      return false
-    }
-  })
-  const set = (v) => {
-    try {
-      sessionStorage.setItem(KEY, v ? '1' : '0')
-    } catch {
-      // ignore
-    }
-    setSignedIn(v)
-  }
-  const value = {
-    isAuthenticated: signedIn,
-    loading: false,
-    user: signedIn ? { name: 'Demo user', email: 'demo@example.com' } : null,
-    signIn: () => set(true),
-    signOut: () => set(false),
-  }
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+const NOT_CONFIGURED =
+  "Login is not set up yet. Check the Cognito values in .env.local.";
+const AuthContext = createContext(null);
+
+const cleanEmail = (email) => email.trim().toLowerCase();
+
+function makeUser(email) {
+  if (!userPool) throw new Error(NOT_CONFIGURED);
+  return new CognitoUser({ Username: cleanEmail(email), Pool: userPool });
 }
 
-export const useAuth = () => useContext(AuthContext)
+// Returns the saved session (Cognito refreshes it if needed), or null if nobody is signed in.
+function loadSession() {
+  return new Promise((resolve) => {
+    const current = userPool?.getCurrentUser();
+    if (!current) return resolve(null);
+    current.getSession((err, session) => {
+      resolve(err || !session || !session.isValid() ? null : session);
+    });
+  });
+}
 
-// PLACEHOLDER — Auth & Settings: return the current Cognito ID token (or null when signed out). src/api/client.js sends it as the Bearer token.
+function userFromSession(session) {
+  const p = session.getIdToken().payload;
+  return { id: p.sub, name: p.name || "", email: p.email || "" };
+}
+
+// `loading` stays true while we check for a saved session, so a page refresh doesn't bounce to /login.
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadSession().then((session) => {
+      if (cancelled) return;
+      setUser(session ? userFromSession(session) : null);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      isAuthenticated: Boolean(user),
+      loading,
+      user,
+
+      signUp: (name, email, password) =>
+        new Promise((resolve, reject) => {
+          if (!userPool) return reject(new Error(NOT_CONFIGURED));
+          const attributes = [
+            new CognitoUserAttribute({ Name: "name", Value: name.trim() }),
+            new CognitoUserAttribute({
+              Name: "email",
+              Value: cleanEmail(email),
+            }),
+          ];
+          userPool.signUp(
+            cleanEmail(email),
+            password,
+            attributes,
+            null,
+            (err) => (err ? reject(err) : resolve()),
+          );
+        }),
+
+      confirmSignUp: (email, code) =>
+        new Promise((resolve, reject) => {
+          makeUser(email).confirmRegistration(code.trim(), true, (err) =>
+            err ? reject(err) : resolve(),
+          );
+        }),
+
+      resendCode: (email) =>
+        new Promise((resolve, reject) => {
+          makeUser(email).resendConfirmationCode((err) =>
+            err ? reject(err) : resolve(),
+          );
+        }),
+
+      signIn: (email, password) =>
+        new Promise((resolve, reject) => {
+          const details = new AuthenticationDetails({
+            Username: cleanEmail(email),
+            Password: password,
+          });
+          makeUser(email).authenticateUser(details, {
+            onSuccess: (session) => {
+              setUser(userFromSession(session));
+              resolve();
+            },
+            onFailure: reject,
+            newPasswordRequired: () =>
+              reject(new Error("A new password is required for this account.")),
+          });
+        }),
+
+      signOut: () => {
+        userPool?.getCurrentUser()?.signOut();
+        setUser(null);
+      },
+    }),
+    [user, loading],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export const useAuth = () => useContext(AuthContext);
+
+// The current Cognito ID token (or null when signed out). src/api/client.js sends it as the Bearer token.
 export async function getIdToken() {
-  return null
+  const session = await loadSession();
+  return session ? session.getIdToken().getJwtToken() : null;
 }
