@@ -45,9 +45,10 @@ async def get_psi(coords: Coords):
         res = requests.get("https://api-open.data.gov.sg/v2/real-time/api/psi")
         res_pm25 = requests.get("https://api-open.data.gov.sg/v2/real-time/api/pm25")
         if res.status_code != 200:
-            return {
-                "body": "An error occured"
-            }
+            raise fastapi.HTTPException(
+                status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occured"
+                )
         psi_data = res.json()["data"]
         psi_readings = res.json()["data"]["items"][0]["readings"]["psi_twenty_four_hourly"]
         pm25_data = res_pm25.json()["data"]["items"][0]["readings"]["pm25_one_hourly"]
