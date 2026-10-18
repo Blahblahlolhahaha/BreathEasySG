@@ -1,0 +1,33 @@
+.setup-card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 16px;
+}
+.setup-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.setup-dot {
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.setup-dot.on {
+  background: var(--accent);
+}
+.setup-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.setup-actions .end {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
