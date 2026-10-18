@@ -28,7 +28,7 @@ def nearest_region(user_coords, regions):
     min_region_ind = -1
     min_region_dist = float("inf")
 
-    for i in range(1, len(regions)):
+    for i in range(0, len(regions)):
         region_coords = Coords.model_validate(regions[i]["labelLocation"])
         print(region_coords)
         test = calculate_distance(user_coords, region_coords)
