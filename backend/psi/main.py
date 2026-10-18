@@ -1,6 +1,6 @@
 import json
 from re import X
-import fastapi
+from fastapi import Cookie, FastAPI, HTTPException, status
 from mangum import Mangum
 import requests
 import math
@@ -10,8 +10,8 @@ class Coords(BaseModel):
     latitude: float
     longitude: float
 
-app = fastapi.FastAPI()
 
+app = FastAPI()
 handler = Mangum(app)
 
 
@@ -45,8 +45,8 @@ async def get_psi(coords: Coords):
         res = requests.get("https://api-open.data.gov.sg/v2/real-time/api/psi")
         res_pm25 = requests.get("https://api-open.data.gov.sg/v2/real-time/api/pm25")
         if res.status_code != 200:
-            raise fastapi.HTTPException(
-                status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occured"
                 )
         psi_data = res.json()["data"]
@@ -62,7 +62,8 @@ async def get_psi(coords: Coords):
                 "pm25_1": pm25_data[region["name"]]
             }
     except requests.RequestException as e:
-        raise fastapi.HTTPException(
-                status_code=fastapi.status.HTTP_500_INTERNAL_SERVER_ERROR,
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occured"
                 )
+
