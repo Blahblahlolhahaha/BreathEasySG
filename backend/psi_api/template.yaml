@@ -1,9 +1,20 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  data-ingestion
+  PSI API backed by the shared psi_data DynamoDB table managed by the refresher stack.
 
-  Sample SAM Template for data-ingestion
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+
+Parameters:
+  PsiDataTableName:
+    Type: String
+    Default: psi_data
+    MinLength: 3
+    MaxLength: 255
+    AllowedPattern: '[a-zA-Z0-9_.-]+'
+    Description: Existing DynamoDB table in the same AWS account and Region
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -19,6 +30,13 @@ Resources:
       Runtime: python3.14
       Architectures:
         - x86_64
+      # The refresher stack owns the table; this API only reads its snapshots.
+      Environment:
+        Variables:
+          PSI_TABLE_NAME: !Ref PsiDataTableName
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref PsiDataTableName
       Events:
         PSI:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api

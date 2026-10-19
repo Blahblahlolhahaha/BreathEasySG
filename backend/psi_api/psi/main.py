@@ -1,11 +1,15 @@
 import json
 import requests
 import math
+import boto3
+import os
 from re import X
 from fastapi import Cookie, FastAPI, HTTPException, status
 from mangum import Mangum
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
+
+table = boto3.resource("dynamodb", region_name="ap-southeast-1").Table(os.environ["PSI_TABLE_NAME"])
 
 class Coords(BaseModel):
     latitude: float
@@ -14,9 +18,6 @@ class Coords(BaseModel):
 
 app = FastAPI()
 handler = Mangum(app)
-
-cached_res = None
-
 
 def calculate_distance(coord1, coord2):
     radius = 6371
@@ -40,49 +41,41 @@ def nearest_region(user_coords, regions):
 
     return regions[min_region_ind]
 
-def retrieve_cache_or_get_request():
-    global cached_res
-    if not cached_res is None:
+def retrieve_cache():
+    response = table.get_item(Key={"id": 0}, ConsistentRead=True)
+    cached_res = response.get("Item")
+    if cached_res:
         res = cached_res["res"]
         res_pm25 = cached_res["res_pm25"]
-        psi_data = res.json()["data"]
-        psi_readings = res.json()["data"]["items"][0]["readings"]["psi_twenty_four_hourly"]
-        pm25_data = res_pm25.json()["data"]["items"][0]["readings"]["pm25_one_hourly"]
+        psi_data = res["data"]
+        psi_readings = res["data"]["items"][0]["readings"]["psi_twenty_four_hourly"]
+        pm25_data = res_pm25["data"]["items"][0]["readings"]["pm25_one_hourly"]
         time = datetime.fromisoformat(psi_data["items"][0]["updatedTimestamp"])
         tz_plus_8 = timezone(timedelta(hours=8))
         now = datetime.now(tz=tz_plus_8)
         timediff = now - time
         minutes = timediff.total_seconds() / 60
-        if minutes < 15:
-            return psi_data, psi_readings, pm25_data
-
-    res = requests.get("https://api-open.data.gov.sg/v2/real-time/api/psi")
-    res_pm25 = requests.get("https://api-open.data.gov.sg/v2/real-time/api/pm25")
-    if res.status_code != 200:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occured"
-        )
-    psi_data = res.json()["data"]
-    psi_readings = res.json()["data"]["items"][0]["readings"]["psi_twenty_four_hourly"]
-    pm25_data = res_pm25.json()["data"]["items"][0]["readings"]["pm25_one_hourly"]
-    cached_res = {
-            "res": res,
-            "res_pm25": res_pm25
-    }
-    return psi_data, psi_readings, pm25_data
+        return psi_data, psi_readings, pm25_data
+    else:
+        return None, None, None
 
 @app.post("/api/psi")
 def get_psi(coords: Coords): 
     try:
-        psi_data, psi_readings, pm25_data = retrieve_cache_or_get_request() 
-        regions = psi_data["regionMetadata"]
-        region = nearest_region(coords, regions)
-        return {
-                "region_info": region["name"],
-                "psi_24": psi_readings[region["name"]],
-                "pm25_1": pm25_data[region["name"]]
-            }
+        psi_data, psi_readings, pm25_data = retrieve_cache() 
+        if psi_data and psi_readings and pm25_data:
+            regions = psi_data["regionMetadata"]
+            region = nearest_region(coords, regions)
+            return {
+                    "region_info": region["name"],
+                    "psi_24": psi_readings[region["name"]],
+                    "pm25_1": pm25_data[region["name"]]
+                }
+        
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occured"
+                )
     except requests.RequestException as e:
         raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
