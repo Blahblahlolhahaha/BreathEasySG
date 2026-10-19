@@ -1,10 +1,10 @@
 # BreatheEasySG infrastructure
 
-This folder documents the proposed infrastructure and deployment practices for BreatheEasySG. It is documentation only: it does not deploy AWS resources or modify the application's SAM templates.
+This folder documents the proposed infrastructure and deployment practices for BreatheEasySG. It is documentation only: does not deploy AWS resources or modify the application's SAM templates.
 
-## At a glance
+## Overview
 
-BreatheEasySG is a serverless application. The frontend is configured through the root `amplify.yml`. Backend components use AWS SAM templates (`template.yaml`) and SAM configuration (`samconfig.toml`). Confirm the exact paths and current contents on the branch you are working on before deploying; some backend work may exist only on feature branches.
+BreatheEasySG is a serverless application. The frontend is configured through the root `amplify.yml`. Backend components use AWS SAM templates (`template.yaml`) and SAM configuration (`samconfig.toml`). To confirm the exact paths and current contents on the branch.
 
 | Component | Responsibility | Ownership boundary |
 |---|---|---|
@@ -13,13 +13,11 @@ BreatheEasySG is a serverless application. The frontend is configured through th
 | Refresher | Refresh PSI data on a schedule | Scheduled Lambda and the `psi_data` DynamoDB table, if that is how the current template is defined |
 | Users backend | User/location-related operations | User and location tables and postal-code lookup resources defined by its template |
 
-The table above records the known design intent, not a guarantee that every resource is present on `main`. Check the actual templates before relying on it.
 
 ## Environment conventions
 
 - AWS Region: `ap-southeast-1` (Singapore), unless the team explicitly agrees otherwise.
-- Keep account IDs, credentials, API keys, and personal data out of Git.
-- `samconfig.toml` may contain local profile names or environment-specific settings. Do not assume a profile such as `nus` exists on every developer's machine.
+- `samconfig.toml` may contain local profile names or environment-specific settings.
 - Use separate stacks for independently deployed backend components if that matches the existing templates and team workflow.
 - Use a feature branch and pull request for infrastructure changes. Do not deploy directly from an unreviewed feature branch to a shared environment.
 
