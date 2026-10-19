@@ -1,9 +1,9 @@
 import json
+import requests
+import math
 from re import X
 from fastapi import Cookie, FastAPI, HTTPException, status
 from mangum import Mangum
-import requests
-import math
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 
@@ -33,7 +33,6 @@ def nearest_region(user_coords, regions):
 
     for i in range(0, len(regions)):
         region_coords = Coords.model_validate(regions[i]["labelLocation"])
-        print(region_coords)
         test = calculate_distance(user_coords, region_coords)
         if test < min_region_dist:
             min_region_dist = test
@@ -74,7 +73,7 @@ def retrieve_cache_or_get_request():
     return psi_data, psi_readings, pm25_data
 
 @app.post("/api/psi")
-async def get_psi(coords: Coords): 
+def get_psi(coords: Coords): 
     try:
         psi_data, psi_readings, pm25_data = retrieve_cache_or_get_request() 
         regions = psi_data["regionMetadata"]
