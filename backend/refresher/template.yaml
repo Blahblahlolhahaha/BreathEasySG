@@ -53,8 +53,7 @@ Resources:
           Properties:
             Description: Invoke the refresher Lambda every fifteen minutes
             OmitName: true
-            ScheduleExpression: cron(0/15 * * * ? *)
-            # For daily at 08:00 Singapore time, use cron(0/15 8 * * ? *).
+            ScheduleExpression: cron(2/15 * * * ? *)
             ScheduleExpressionTimezone: Asia/Singapore
             FlexibleTimeWindow:
               Mode: 'OFF'
