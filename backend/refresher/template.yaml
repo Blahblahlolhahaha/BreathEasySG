@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Refresher example: invoke a Lambda every fifteen minutes with EventBridge Scheduler,
+  expose it through GET /hello, and grant access to the psi_data DynamoDB table.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 10
+
+Resources:
+  PsiDataTable:
+    Type: AWS::DynamoDB::Table
+    # Preserve stored PSI data when the stack is deleted or the table is replaced.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      # Fixed physical name requested for this example.
+      TableName: psi_data
+      BillingMode: PAY_PER_REQUEST
+      # Use unique integer IDs in application code; DynamoDB stores them as Numbers.
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: N
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  RefresherFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: refresher/
+      Handler: main.lambda_handler
+      Runtime: python3.14
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          PSI_TABLE_NAME: !Ref PsiDataTable
+      # Scope item read/write permissions to this table.
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PsiDataTable
+      Events:
+        # SAM creates the schedule and its IAM role to invoke this Lambda.
+        RefreshSchedule:
+          Type: ScheduleV2
+          Properties:
+            Description: Invoke the refresher Lambda every fifteen minutes
+            OmitName: true
+            ScheduleExpression: cron(0/15 * * * ? *)
+            # For daily at 08:00 Singapore time, use cron(0/15 8 * * ? *).
+            ScheduleExpressionTimezone: Asia/Singapore
+            FlexibleTimeWindow:
+              Mode: 'OFF'
+            State: ENABLED
+            Input: '{"source":"refresher.scheduler","action":"refresh"}'
+    Metadata:
+      BuildMethod: python-uv
+
+
+Outputs:
+  PsiDataTableName:
+    Description: DynamoDB table available to the refresher Lambda
+    Value: !Ref PsiDataTable
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  RefresherFunction:
+    Description: "Hello World Lambda Function ARN"
+    Value: !GetAtt RefresherFunction.Arn
+  RefresherFunctionIamRole:
+    Description: "Implicit IAM Role created for Hello World function"
+    Value: !GetAtt RefresherFunctionRole.Arn
