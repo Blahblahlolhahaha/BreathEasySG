@@ -1,15 +1,18 @@
 // PLACEHOLDER — Notifications: background script that shows push alerts when the app is closed. Empty for now.
 
-self.addEventListener("message", (event) => {
-  console.log("SW RECEIVED MESSAGE:", event.data)
+self.addEventListener("push", (event) => {
+  console.log("PUSH RECEIVED:", event)
 
-  if (event.data?.type === "TEST_NOTIFICATION") {
-    event.waitUntil(
-      self.registration.showNotification("BreatheEasy SG", {
-        body: "Service worker notifications are working!"
-      })
+  const data = event.data
+    ? event.data.json()
+    : {}
+
+  event.waitUntil(
+    self.registration.showNotification(
+      data.title || "BreatheEasy SG",
+      {
+        body: data.body || "Air quality alert"
+      }
     )
-  }
+  )
 })
-
-// basically sw receives 'message' event, then show notification. 
