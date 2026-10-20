@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Store BreathEasySG user profiles and locations with postal-code region lookups.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+
+Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Store one profile per user; read and update settings directly by userId.
+        must:
+          - userId is the string partition key and uniquely identifies a user profile.
+          - Application code supplies and validates non-key attributes and initial values.
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      DeletionProtectionEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      # DynamoDB encrypts the table with an AWS-owned key by default.
+      # Only key attributes belong in AttributeDefinitions.
+      # Each item can also contain name (String), setupComplete (Boolean),
+      # limits (Map: psi24 and pm25 Numbers), channels (Map: push and email
+      # Booleans), and places (List of Maps, including an empty list).
+      # Each place contains locId (Number referencing LocationsTable.locID),
+      # label, type, regionId,
+      # and limits (Map with psi24 and pm25 Numbers).
+      # Initial values such as setupComplete=false are set when writing an item;
+      # this template creates the table without inserting any user records.
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  LocationsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Store distinct places and reuse a known region when their postal codes match.
+        must:
+          - locID is a unique integer supplied and validated by application code.
+          - postalCode is a string preserving leading zeros; multiple locations may share it.
+          - Application code supplies name and region; coordinates are not stored.
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      DeletionProtectionEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      # Non-key fields name and region are supplied when inserting each item.
+      # Query PostalCodeIndex before calling OneMap to reuse a stored region.
+      # Index reads are eventually consistent, so concurrent misses may still
+      # result in duplicate lookups; application code handles cache misses.
+      AttributeDefinitions:
+        - AttributeName: locId
+          AttributeType: S
+        - AttributeName: postalCode
+          AttributeType: S
+      KeySchema:
+        - AttributeName: locId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: PostalCodeIndex
+          KeySchema:
+            - AttributeName: postalCode
+              KeyType: HASH
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - region
+
+Outputs:
+  LocationsTableName:
+    Description: Name of the locations table
+    Value: !Ref LocationsTable
+  LocationsTableArn:
+    Description: ARN of the locations table for scoped IAM policies
+    Value: !GetAtt LocationsTable.Arn
+  UsersTableName:
+    Description: Name of the user profiles table
+    Value: !Ref UsersTable
+  UsersTableArn:
+    Description: ARN of the user profiles table for scoped IAM policies
+    Value: !GetAtt UsersTable.Arn

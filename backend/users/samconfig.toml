@@ -1,0 +1,15 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "breatheasy-users"
+confirm_changeset = true
+template_file = "template.yaml"
+resolve_s3 = true
+s3_prefix = "breatheasy-users"
+region = "ap-southeast-1"
+profile = "nus"
+capabilities = "CAPABILITY_IAM"
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-southeast-1"

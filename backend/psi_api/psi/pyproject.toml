@@ -1,0 +1,12 @@
+[project]
+name = "psi"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "boto3>=1.43.114",
+    "fastapi[standard]>=0.142.1",
+    "mangum>=0.22.0",
+    "requests>=2.34.2",
+]
