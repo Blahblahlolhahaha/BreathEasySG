@@ -1,7 +1,6 @@
-// Lists the user's saved places and lets them add or remove one (used by the Setup and Alerts pages).
-// PLACEHOLDER — Location & Alerts: when api/places.js (OneMap search) exists, replace the "Area" dropdown in PlaceForm with that search.
-import { useState } from "react";
-import { Briefcase, GraduationCap, House, MapPin, Plus, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Briefcase, GraduationCap, House, MapPin, Plus, X, Search } from "lucide-react";
+import {REGIONS, findRegionForCoords} from "../api/location.js"
 import "./SettingsForm.css";
 
 const TYPES = [
@@ -13,15 +12,6 @@ const TYPES = [
 const ICONS = { home: House, school: GraduationCap, office: Briefcase };
 const MAX_PLACES = 10;
 
-// Middle of each NEA region. Until the OneMap search exists, a place is pinned to the middle of the region the user picks.
-const REGIONS = [
-  { id: "north", name: "North", lat: 1.41803, lng: 103.82 },
-  { id: "south", name: "South", lat: 1.29587, lng: 103.82 },
-  { id: "east", name: "East", lat: 1.35735, lng: 103.94 },
-  { id: "west", name: "West", lat: 1.35735, lng: 103.7 },
-  { id: "central", name: "Central", lat: 1.35735, lng: 103.82 },
-];
-
 const newId = () =>
   `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -29,14 +19,60 @@ function PlaceForm({ onAdd }) {
   const [type, setType] = useState("home");
   const [label, setLabel] = useState("Home");
   const [address, setAddress] = useState("");
-  const [regionId, setRegionId] = useState("central");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const changeType = (next) => {
     setType(next);
-    // Fill in a sensible name, unless the user typed their own.
     if (!label || TYPES.some((t) => t.label === label))
       setLabel(TYPES.find((t) => t.id === next).label);
+  };
+
+  // OneMap search query effect with 300ms debounce
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 3 || selectedLocation) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(
+            searchQuery
+          )}&returnGeom=Y&getAddrDetails=Y`
+        );
+        const data = await res.json();
+        setSearchResults(data.results || []);
+      } catch (err) {
+        console.error("OneMap search error:", err);
+        setSearchResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, selectedLocation]);
+
+  const handleSelectResult = (item) => {
+    const lat = parseFloat(item.LATITUDE);
+    const lng = parseFloat(item.LONGITUDE);
+    const formattedAddress = item.ADDRESS || searchQuery;
+
+    setSelectedLocation({
+      address: formattedAddress,
+      lat,
+      lng,
+      regionId: findRegionForCoords(lat, lng),
+    });
+    setAddress(formattedAddress);
+    setSearchQuery(formattedAddress);
+    setSearchResults([]);
   };
 
   const handleSubmit = (e) => {
@@ -46,18 +82,27 @@ function PlaceForm({ onAdd }) {
       setError("Give this place a name, like “Home”.");
       return;
     }
-    const region = REGIONS.find((r) => r.id === regionId);
+
+    const lat = selectedLocation ? selectedLocation.lat : REGIONS[4].lat;
+    const lng = selectedLocation ? selectedLocation.lng : REGIONS[4].lng;
+    const regionId = selectedLocation
+      ? selectedLocation.regionId
+      : findRegionForCoords(lat, lng);
+
     onAdd({
       id: newId(),
       label: name,
       type,
-      address: address.trim(),
-      lat: region.lat,
-      lng: region.lng,
+      address: address.trim() || searchQuery.trim(),
+      lat,
+      lng,
       regionId,
     });
+
     setLabel("");
     setAddress("");
+    setSearchQuery("");
+    setSelectedLocation(null);
     setError("");
   };
 
@@ -84,31 +129,68 @@ function PlaceForm({ onAdd }) {
           />
         </label>
       </div>
-      <div className="settings-add-row">
-        <label className="settings-field">
-          Address (optional)
-          <input
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            maxLength={200}
-            placeholder="e.g. Bishan"
-          />
-        </label>
-        <label className="settings-field">
-          Area
-          <select
-            value={regionId}
-            onChange={(e) => setRegionId(e.target.value)}
-          >
-            {REGIONS.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+
+      <div className="settings-add-row" style={{ position: "relative", "grid-template-columns": "1fr" }}>
+        <label className="settings-field" style={{ flex: "1 1 100%", width:"100%" }}>
+          Search Location
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", width: "100%" }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSelectedLocation(null);
+                setAddress(e.target.value);
+              }}
+              maxLength={200}
+              placeholder="e.g. Computing Drive, 117417"
+              style={{ width: "100%" }}
+            />
+            <Search size={18} aria-hidden="true" style={{ opacity: 0.6 }} />
+          </div>
+          {loading && <span className="settings-hint">Searching OneMap...</span>}
+          {searchResults.length > 0 && (
+            <ul
+              className="onemap-dropdown"
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                background: "white",
+                border: "1px solid #ccc",
+                zIndex: 10,
+                maxHeight: "150px",
+                overflowY: "auto",
+                listStyle: "none",
+                padding: 0,
+                margin: 0,
+                boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+              }}
+            >
+              {searchResults.map((item, idx) => (
+                <li
+                  key={idx}
+                  onClick={() => handleSelectResult(item)}
+                  style={{
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                    borderBottom: "1px solid #eee",
+                    fontSize: "0.9rem",
+                  }}
+                  onMouseEnter={(e) => (e.target.style.background = "#f5f5f5")}
+                  onMouseLeave={(e) => (e.target.style.background = "white")}
+                >
+                  <strong>{item.BUILDING || item.SEARCHVAL}</strong>
+                  <br />
+                  <small style={{ color: "#666" }}>{item.ADDRESS}</small>
+                </li>
+              ))}
+            </ul>
+          )}
         </label>
       </div>
+
       {error && (
         <p className="settings-error" role="alert">
           {error}
