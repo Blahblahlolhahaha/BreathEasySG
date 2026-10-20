@@ -144,3 +144,5 @@ vite.config.ts.timestamp-*
 
 .venv/
 __pycache__/
+
+.aws-sam/

@@ -3,6 +3,8 @@
 import base64
 import json
 import os
+from datetime import datetime, timezone
+from decimal import Decimal
 
 import fastapi
 from fastapi.middleware.cors import CORSMiddleware
@@ -58,8 +60,7 @@ class ProfileUpdate(BaseModel):
 
 # ---------- Where profiles are kept ----------
 class MemoryStore:
-    """Keeps profiles in a Python dictionary. Fine for local testing; everything is lost on restart.
-    Later we replace this with a DynamoDB version that has the same get/put methods."""
+    """Keeps profiles in a Python dictionary. Used for local testing; everything is lost on restart."""
 
     def __init__(self):
         self.items = {}
@@ -71,7 +72,42 @@ class MemoryStore:
         self.items[user_id] = item
 
 
-store = MemoryStore()
+def to_dynamo(value):
+    """DynamoDB does not accept Python floats (like latitude 1.35), so turn them into Decimals."""
+    return json.loads(json.dumps(value), parse_float=Decimal)
+
+
+def to_plain(value):
+    """The other way round: Decimals from DynamoDB back into normal ints and floats."""
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, dict):
+        return {k: to_plain(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [to_plain(v) for v in value]
+    return value
+
+
+class DynamoStore:
+    """Keeps profiles in a DynamoDB table with one row per user (userID = the Cognito sub)."""
+
+    def __init__(self, table_name):
+        import boto3
+
+        self.table = boto3.resource("dynamodb").Table(table_name)
+
+    def get(self, user_id):
+        item = self.table.get_item(Key={"userID": user_id}).get("Item")
+        return to_plain(item) if item else None
+
+    def put(self, user_id, item):
+        row = {**item, "userID": user_id, "updatedAt": datetime.now(timezone.utc).isoformat()}
+        self.table.put_item(Item=to_dynamo(row))
+
+
+# On AWS the template sets TABLE_NAME, so profiles go to DynamoDB. On your computer it is empty, so they stay in memory.
+TABLE_NAME = os.environ.get("TABLE_NAME")
+store = DynamoStore(TABLE_NAME) if TABLE_NAME else MemoryStore()
 
 
 # ---------- Who is calling? ----------
@@ -128,7 +164,8 @@ async def update_me(update: ProfileUpdate, request: fastapi.Request):
     if len(ids) != len(set(ids)):
         raise fastapi.HTTPException(status_code=422, detail="Each place needs a different id")
 
-    saved = {**(store.get(user["sub"]) or {}), **changes}
+    # The email is saved too, so the alerts code can find where to send each user's email.
+    saved = {**(store.get(user["sub"]) or {}), **changes, "email": user.get("email", "")}
     store.put(user["sub"], saved)
     return build_profile(user, saved)
 
