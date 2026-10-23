@@ -4,6 +4,7 @@
 // and save the subscription to the backend (apiFetch from src/api/client.js with auth: true). Return true when push is on.
 
 import { apiFetch } from "../api/client"
+import { config } from "../config"
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
@@ -62,8 +63,21 @@ export async function registerPush() {
   await apiFetch("/api/push/subscribe", {
     method: "POST",
     body: subscription.toJSON(),
-    auth: true
+    auth: true,
+    baseUrl: config.notificationsApiUrl
   })
 
   return true
+}
+
+export async function sendTestPush() {
+  return apiFetch("/api/push/test", {
+    method: "POST",
+    body: {
+      title: "BreatheEasy SG",
+      body: "Python backend push is working!"
+    },
+    auth: true,
+    baseUrl: config.notificationsApiUrl
+  })
 }
