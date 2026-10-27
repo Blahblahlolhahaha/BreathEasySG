@@ -1,0 +1,58 @@
+.profile {
+  display: grid;
+  gap: 16px;
+  max-width: 640px;
+}
+.profile-list {
+  margin: 8px 0 16px;
+}
+.profile-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.profile-row dt {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.profile-row dd {
+  margin: 0;
+  text-align: right;
+}
+.profile-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.profile-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+.profile-field input {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+}
+.profile-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-left: 8px;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.profile-error {
+  color: var(--bad);
+  font-size: 0.9rem;
+  margin-top: 8px;
+}

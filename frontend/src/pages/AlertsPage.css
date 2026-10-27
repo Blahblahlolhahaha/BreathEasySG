@@ -1,0 +1,16 @@
+.alerts {
+  display: grid;
+  gap: 16px;
+  max-width: 640px;
+}
+.alerts-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.alerts-saved {
+  color: var(--ok);
+  font-size: 0.9rem;
+  margin: 0;
+}
