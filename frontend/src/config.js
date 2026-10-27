@@ -4,6 +4,9 @@ const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 export const config = {
   /** API Gateway base URL, e.g. https://abc123.execute-api.ap-southeast-1.amazonaws.com/Prod */
   apiUrl,
+
+  notificationsApiUrl:
+    (import.meta.env.VITE_NOTIFICATIONS_API_URL || '').replace(/\/$/, ''),
   /** true = use placeholder data from src/api/mock. Stays true until VITE_API_URL is set. */
   useMock: import.meta.env.VITE_USE_MOCK === 'true' || !apiUrl,
   /** How often to re-fetch readings. NEA publishes hourly and the backend caches for 15 min. */
