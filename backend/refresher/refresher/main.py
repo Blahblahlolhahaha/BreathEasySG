@@ -4,6 +4,7 @@ import requests
 import boto3
 import os
 from decimal import Decimal
+from datetime import datetime, timezone, timedelta
 
 table = boto3.resource("dynamodb", region_name="ap-southeast-1").Table(os.environ["PSI_TABLE_NAME"])
 
@@ -32,7 +33,8 @@ def lambda_handler(event, context):
         res = requests.get("https://api-open.data.gov.sg/v2/real-time/api/psi")
         res_pm25 = requests.get("https://api-open.data.gov.sg/v2/real-time/api/pm25")
         psi_data = res.json()["data"]
-        time = psi_data["items"][0]["updatedTimestamp"]
+        tz_plus_8 = timezone(timedelta(hours=8))
+        time = datetime.fromisoformat(psi_data["items"][0]["updatedTimestamp"]).astimezone(tz_plus_8)
         if res.status_code != 200:
             return {
                 "statusCode": 500,
@@ -41,7 +43,7 @@ def lambda_handler(event, context):
                 )
             }
         table.put_item(Item={
-               "id": 0,
+               "id": time.hour,
                "res": res.json(parse_float=Decimal),
                "res_pm25": res_pm25.json(parse_float=Decimal),
                "updatedTimestamp": time
