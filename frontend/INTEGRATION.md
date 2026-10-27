@@ -49,6 +49,7 @@ BreathEasySG/
 - App layout: sidebar on desktop, bottom tabs on phones, light/dark theme
 - Public haze map page (`/`), no login needed
 - Dashboard (`/dashboard`): air near you, 24-hour PSI and PM2.5 charts with the user's threshold, a rough 3-hour estimate, map preview, My places
+- "Best time to go out" card: when the air near the user is likely within their thresholds over the next 6 hours (an estimate from the last 6 hours' trend)
 - Map page (`/map`): colour map of Singapore, region values, PSI/PM2.5 switch, full screen
 - In-app warning banner and pop-up when a location is over the user's threshold
 - Loading, error and empty states; readings refresh every 5 minutes
