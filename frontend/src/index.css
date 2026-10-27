@@ -709,6 +709,13 @@ select {
   box-shadow: var(--shadow-lg);
   animation: toast-in 0.25s ease-out;
 }
+.toast > svg {
+  flex: none;
+  margin-top: 1px;
+}
+.toast-clear > svg {
+  color: var(--ok);
+}
 .toast > div {
   flex: 1;
   display: flex;

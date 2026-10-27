@@ -43,22 +43,35 @@ function Shell() {
   const [dismissed, setDismissed] = useState(null)
   const showBanner = (status.current.length > 0 || overPlaces.length > 0) && dismissed !== situation
 
-  // Pop-up: once each time the current location newly goes over a limit.
+  // Pop-ups: once each time the current location newly goes over a limit, and once when it's back under.
+  // Saved places get a "back to normal" pop-up too (their going over is already shown by the banner).
   const [toasts, setToasts] = useState([])
   const lastAlerted = useRef('')
+  const lastOverPlaces = useRef(new Set())
   const closeToast = useCallback((id) => setToasts((ts) => ts.filter((t) => t.id !== id)), [])
   useEffect(() => {
+    const add = (toast) => setToasts((ts) => [...ts, { id: `${Date.now()}-${ts.length}`, ...toast }])
     const key = status.current.map((b) => b.metric).join()
+    const cleared = [] // everything that just came back under, shown as one pop-up
     if (key && key !== lastAlerted.current) {
       const b = status.current[0]
       const m = METRICS[b.metric]
-      setToasts((ts) => [
-        ...ts,
-        { id: Date.now(), title: `${m.short} near you just passed your limit`, body: `It's now ${b.value}${m.unit ? ` ${m.unit}` : ''}. Your limit is ${b.limit}.` },
-      ])
+      add({ kind: 'over', title: `${m.short} near you just passed your limit`, body: `It's now ${b.value}${m.unit ? ` ${m.unit}` : ''}. Your limit is ${b.limit}.` })
+    } else if (!key && lastAlerted.current) {
+      cleared.push('The air near you')
+      setToasts((ts) => ts.filter((t) => t.kind !== 'over')) // the "passed your limit" pop-up is out of date now
     }
     lastAlerted.current = key
-  }, [status])
+
+    const overNow = new Set(places.filter((p) => status.places[p.id]?.length).map((p) => p.id))
+    for (const p of places) if (lastOverPlaces.current.has(p.id) && !overNow.has(p.id)) cleared.push(p.label)
+    lastOverPlaces.current = overNow
+
+    if (cleared.length) {
+      const names = new Intl.ListFormat('en', { type: 'conjunction' }).format(cleared)
+      add({ kind: 'clear', title: `${names} ${cleared.length > 1 ? 'are' : 'is'} back to normal`, body: "Back within your limits." })
+    }
+  }, [status, places])
 
   const initials = (profile?.name || '?')
     .split(' ')

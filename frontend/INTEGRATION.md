@@ -51,7 +51,7 @@ BreathEasySG/
 - Dashboard (`/dashboard`): air near you, 24-hour PSI and PM2.5 charts with the user's threshold, a rough 3-hour estimate, map preview, My places
 - "Best time to go out" card: when the air near the user is likely within their thresholds over the next 6 hours (an estimate from the last 6 hours' trend)
 - Map page (`/map`): colour map of Singapore, region values, PSI/PM2.5 switch, full screen
-- In-app warning banner and pop-up when a location is over the user's threshold
+- In-app warning banner and pop-up when a location is over the user's threshold, and a "back to normal" pop-up when it drops back under
 - Loading, error and empty states; readings refresh every 5 minutes
 - `api/client.js`: shared helper for backend calls (adds `VITE_API_URL` and the login token)
 - `api/readings.js`: loads readings from `GET /api/readings`, or mock data while `VITE_API_URL` is empty

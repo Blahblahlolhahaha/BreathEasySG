@@ -1,15 +1,16 @@
-// Pop-up warnings that appear when a location goes over the limit, and close after 8 seconds.
+// Pop-ups when a location goes over the limit or comes back under it; each closes after 8 seconds.
 import { useEffect } from 'react'
-import { TriangleAlert, X } from 'lucide-react'
+import { CircleCheck, TriangleAlert, X } from 'lucide-react'
 
 function Toast({ toast, onClose }) {
   useEffect(() => {
     const t = setTimeout(() => onClose(toast.id), 8000)
     return () => clearTimeout(t)
   }, [toast.id, onClose])
+  const Icon = toast.kind === 'clear' ? CircleCheck : TriangleAlert
   return (
-    <div className="toast">
-      <TriangleAlert size={18} aria-hidden="true" />
+    <div className={`toast toast-${toast.kind || 'over'}`}>
+      <Icon size={18} aria-hidden="true" />
       <div>
         <strong>{toast.title}</strong>
         <span>{toast.body}</span>
@@ -21,7 +22,10 @@ function Toast({ toast, onClose }) {
   )
 }
 
-/** Pop-up messages in the corner. Each closes itself after 8 seconds. onClose must be stable (useCallback). */
+/**
+ * Pop-up messages in the corner. Each toast is { id, kind: 'over' | 'clear', title, body } and closes itself after 8 seconds.
+ * onClose must be stable (useCallback).
+ */
 export function Toasts({ toasts, onClose }) {
   return (
     <div className="toasts" role="status" aria-live="polite">
