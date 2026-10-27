@@ -1,4 +1,4 @@
-// Makes the rough 3-hour estimate on the trend charts by following the trend of the last 6 hours.
+// Rough estimates from the trend of the last 6 hours: the 3-hour line on the trend charts and the "best time to go out" card.
 
 const HOUR = 3600_000
 const FIT_HOURS = 6
@@ -45,4 +45,40 @@ export function forecastFor(series, { fitHours = FIT_HOURS, hoursAhead = AHEAD_H
   // Changes smaller than 2 points or 3% read as "steady", so tiny wobbles don't say "rising".
   const direction = Math.abs(change) < Math.max(2, last.value * 0.03) ? 'steady' : change > 0 ? 'rising' : 'falling'
   return { direction, value, hoursAhead, fitHours, points }
+}
+
+/**
+ * "Best time to go out": follows the PSI and PM2.5 estimates hour by hour and finds when the air
+ * crosses the user's limits. An hour is "ok" when both readings are at or under their limits.
+ *
+ * Returns null without enough data, otherwise { hoursAhead, fitHours, hours, kind, time, metric }:
+ * - hours: [{ time, psi24, pm25, ok }] for now and each hour ahead
+ * - kind:  'clear' (ok the whole time) · 'until' (ok now, goes over at `time`)
+ *          'from' (over now, back under at `time`) · 'over' (over the whole time)
+ * - metric: the reading that's over at the change ('psi24' | 'pm25'), for the wording
+ */
+export function bestTimeFor({ psi24, pm25, limits, hoursAhead = 6 }) {
+  const psiEst = forecastFor(psi24, { hoursAhead })
+  const pmEst = forecastFor(pm25, { hoursAhead })
+  if (!psiEst || !pmEst) return null
+
+  const at = (series, est, h) => (h === 0 ? series[series.length - 1].value : est.points[h - 1].value)
+  const hours = []
+  for (let h = 0; h <= hoursAhead; h++) {
+    const p = at(psi24, psiEst, h)
+    const m = at(pm25, pmEst, h)
+    const time = h === 0 ? psi24[psi24.length - 1].time : psiEst.points[h - 1].time
+    hours.push({ time, psi24: p, pm25: m, ok: p <= limits.psi24 && m <= limits.pm25 })
+  }
+
+  const overMetric = (hr) => (hr.psi24 > limits.psi24 ? 'psi24' : 'pm25')
+  const nowOk = hours[0].ok
+  const change = hours.findIndex((hr) => hr.ok !== nowOk)
+  let kind
+  if (change === -1) kind = nowOk ? 'clear' : 'over'
+  else kind = nowOk ? 'until' : 'from'
+  const turn = change === -1 ? null : hours[change]
+  const metric = kind === 'until' ? overMetric(turn) : kind === 'clear' ? null : overMetric(hours[0])
+
+  return { hoursAhead, fitHours: psiEst.fitHours, hours, kind, time: turn?.time ?? null, metric }
 }

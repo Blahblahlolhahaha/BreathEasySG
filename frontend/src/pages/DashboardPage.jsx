@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom'
 import { ChevronRight, CloudOff, RefreshCw, Sparkles } from 'lucide-react'
 import { AirMap } from '../components/AirMap'
+import { BestTimeCard } from '../components/BestTimeCard'
 import { CurrentLocationCard } from '../components/CurrentLocationCard'
 import { DataMeta } from '../components/DataMeta'
 import { PageHeader } from '../components/PageHeader'
@@ -50,6 +51,14 @@ export default function DashboardPage() {
       )}
 
       <CurrentLocationCard regions={data?.regions} limits={limits} />
+
+      <BestTimeCard
+        psi24={seriesFor(data, region?.id, 'psi24')}
+        pm25={seriesFor(data, region?.id, 'pm25')}
+        limits={limits}
+        regionName={region?.name}
+        loading={!data}
+      />
 
       <div className="grid-2">
         <TrendCard metric="psi24" series={seriesFor(data, region?.id, 'psi24')} limit={limits.psi24} regionName={region?.name} loading={!data} />
