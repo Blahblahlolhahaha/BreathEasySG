@@ -95,7 +95,7 @@ function RegionPin({ region, metric }) {
     return L.divIcon({
       className: 'region-pin',
       iconSize: null,
-      html: `<span style="--pin:rgb(${r},${g},${b})"><b>${value}</b>${region.name}</span>`,
+      html: `<span style="--pin:rgb(${r},${g},${b})"><b>${value}</b><i>${region.name}</i></span>`,
     })
   }, [metric, value, region.name])
   const psiBand = bandFor('psi24', region.psi24)

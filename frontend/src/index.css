@@ -880,6 +880,12 @@ select {
   height: 100%;
   min-height: 420px;
 }
+.airmap {
+  /* Keeps Leaflet's high z-index layers inside the map, so they can't cover the top bar or bottom tabs. */
+  isolation: isolate;
+  /* Lets the pins switch to a compact style when the map itself is narrow. */
+  container-type: inline-size;
+}
 .airmap-canvas {
   position: absolute;
   inset: 0;
@@ -993,6 +999,18 @@ select {
   white-space: nowrap;
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
   cursor: default;
+}
+.region-pin i {
+  font-style: normal;
+}
+/* On a narrow map the region names would overlap, so pins show just the number (the name is in the hover tooltip). */
+@container (max-width: 480px) {
+  .region-pin span {
+    padding: 3px;
+  }
+  .region-pin i {
+    display: none;
+  }
 }
 .region-pin b {
   min-width: 30px;
@@ -1347,6 +1365,15 @@ select {
   }
   .map-legend {
     width: 160px;
+    /* Sits under the PSI/PM2.5 switch, since both don't fit side by side on a phone. */
+    top: 54px;
+  }
+  .airmap.is-full .map-legend {
+    top: calc(max(14px, env(safe-area-inset-top)) + 44px);
+  }
+  /* The small dashboard preview has no room for the legend; it's shown once the map opens full screen. */
+  .airmap-preview:not(.is-full) .map-legend {
+    display: none;
   }
   .map-legend-note {
     display: none;
