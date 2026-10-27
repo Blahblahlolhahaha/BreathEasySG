@@ -30,7 +30,7 @@ export function LocationProvider({ children }) {
       async (pos) => {
         const c = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }
         setCoords(c)
-        setGpsRegionId(await findRegionForCoords(c))
+        setGpsRegionId(await findRegionForCoords(c.lat, c.lng))
         setStatus('ready')
       },
       (err) => setStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'error'),

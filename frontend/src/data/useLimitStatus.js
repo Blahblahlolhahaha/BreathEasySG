@@ -13,18 +13,23 @@ import { useLocation } from './LocationContext'
 export function useLimitStatus() {
   const { data } = useReadings()
   const { places } = useProfile()
-  const { regionId } = useLocation()
+  const { coords, regionId } = useLocation()
   const [status, setStatus] = useState({ current: [], places: {} })
-  const placeKey = places.map((p) => p.id).join(',')
+
+  // The check works from coordinates, so an area the user picked (no GPS) is sent as that region's centre.
+  const region = data?.regions.find((r) => r.id === regionId)
+  const lat = coords?.lat ?? region?.lat
+  const lng = coords?.lng ?? region?.lng
 
   useEffect(() => {
     if (!data) return
     let alive = true
-    getLimitBreaches({ regionId, placeIds: placeKey ? placeKey.split(',') : [] }).then((s) => alive && setStatus(s))
+    const point = lat != null && lng != null ? { lat, lng } : null
+    getLimitBreaches({ coords: point, places }).then((s) => alive && setStatus(s))
     return () => {
       alive = false
     }
-  }, [data, regionId, placeKey])
+  }, [data, lat, lng, places])
 
   return status
 }
