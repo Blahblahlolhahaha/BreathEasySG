@@ -123,10 +123,21 @@ def get_readings():
         key=lambda item: datetime.fromisoformat(item["updatedTimestamp"]) 
     )
 
+    now = datetime.now(tz=tz_plus_8)
+    current_hour = now.replace(minute=0, second=0, microsecond=0)
+    yesterday = current_hour - timedelta(hours=24)
+    send = []
+    for item in items:
+        reading_time = datetime.fromisoformat(item["updatedTimestamp"])
+
+        if reading_time > yesterday:
+            send.append(item)
+        
+
     res = {
-        "psi_24": [item["res"]["data"]["items"][0]["readings"]["psi_twenty_four_hourly"] for item in items],
-        "pm25_1": [item["res_pm25"]["data"]["items"][0]["readings"]["pm25_one_hourly"] for item in items],
-        "timestamps": [item["updatedTimestamp"] for item in items]
+        "psi_24": [item["res"]["data"]["items"][0]["readings"]["psi_twenty_four_hourly"] for item in send],
+        "pm25_1": [item["res_pm25"]["data"]["items"][0]["readings"]["pm25_one_hourly"] for item in send],
+        "timestamps": [item["updatedTimestamp"] for item in send]
     }
     return res
 
