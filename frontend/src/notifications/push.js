@@ -69,15 +69,3 @@ export async function registerPush() {
 
   return true
 }
-
-export async function sendTestPush() {
-  return apiFetch("/api/push/test", {
-    method: "POST",
-    body: {
-      title: "BreatheEasy SG",
-      body: "Python backend push is working!"
-    },
-    auth: true,
-    baseUrl: config.notificationsApiUrl
-  })
-}

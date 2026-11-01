@@ -3,3 +3,4 @@ mangum
 boto3
 pywebpush
 python-dotenv
+uvicorn

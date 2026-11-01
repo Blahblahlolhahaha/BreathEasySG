@@ -115,9 +115,39 @@ def send_push(subscription, title, body):
         vapid_claims={
         "sub": os.environ.get(
             "VAPID_SUBJECT",
-            "mailto:breatheasysg@example.com"
+            "mailto:breatheasy.corp@gmail.com"
         )
         },
+    )
+    
+def send_email(to_email, title, body):
+    """Sends an alert email using Amazon SES."""
+
+    sender_email = os.environ.get("SES_SENDER_EMAIL")
+
+    if not sender_email:
+        raise RuntimeError("SES_SENDER_EMAIL is not set")
+
+    import boto3
+    ses = boto3.client("ses")
+
+    ses.send_email(
+        Source=sender_email,
+        Destination={
+            "ToAddresses": [to_email]
+        },
+        Message={
+            "Subject": {
+                "Data": title,
+                "Charset": "UTF-8"
+            },
+            "Body": {
+                "Text": {
+                    "Data": body,
+                    "Charset": "UTF-8"
+                }
+            }
+        }
     )
 
 # Authentication 
@@ -175,40 +205,114 @@ def save_push_subscription(
         subscription.model_dump()  # endpoint, expierationtime, p256dh, auth etc.. 
     )
 
+    print("Push subscription saved for user:", user["sub"])
+    
     return {
         "message": "Push subscription saved"
     }
 
-class PushMessage(BaseModel):
-    title: str
-    body: str
 
+class AlertEvent(BaseModel):
+    userID: str
+    eventType: str
+    metric: str
+    value: float
+    limit: float
+    locationName: str
+    
+def format_alert_message(alert: AlertEvent):
+    metric_names = {
+        "pm25": "PM2.5",
+        "psi24": "PSI",
+    }
 
-@app.post("/api/push/test")   # temporary only.. for test push. 
-def test_push(
-    message: PushMessage,
-    request: fastapi.Request
-):
-    user = current_user(request)
+    metric = metric_names.get(
+        alert.metric,
+        alert.metric.upper()
+    )
 
-    subscriptions = store.get_by_user(user["sub"])
+    if alert.eventType == "THRESHOLD_BREACH":
+        return {
+            "title": "Air Quality Alert",
+            "body": (
+                f"{metric} at {alert.locationName} is {alert.value}, "
+                f"above your threshold of {alert.limit}."
+            )
+        }
 
-    if not subscriptions:
-        raise fastapi.HTTPException(
-            status_code=404,
-            detail="No push subscriptions found"
+    if alert.eventType == "BACK_TO_NORMAL":
+        return {
+            "title": "Air Quality Back to Normal",
+            "body": (
+                f"{metric} at {alert.locationName} is back below "
+                f"your threshold of {alert.limit}. "
+                f"Current level: {alert.value}."
+            )
+        }
+
+    raise ValueError(
+        f"Unknown event type: {alert.eventType}"
+    )
+
+def get_user_profile(user_id):
+    import boto3
+
+    table_name = os.environ.get("PROFILE_TABLE_NAME")
+
+    if not table_name:
+        raise RuntimeError("PROFILE_TABLE_NAME is not set")
+
+    table = boto3.resource("dynamodb").Table(table_name)
+
+    response = table.get_item(
+        Key={"userID": user_id}
+    )
+
+    return response.get("Item")
+
+   
+def sqs_handler(event, context):
+    for record in event.get("Records", []):
+        alert_data = json.loads(record["body"])
+        alert = AlertEvent(**alert_data)
+
+        message = format_alert_message(alert)
+
+        profile = get_user_profile(alert.userID)
+
+        if not profile:
+            continue
+
+        channels = profile.get(
+            "channels",
+            {"push": True, "email": True}
         )
 
-    for subscription in subscriptions:
-        send_push(
-            subscription,
-            message.title,
-            message.body
-        )
+        # Push notification
+        if channels.get("push", True):
+            subscriptions = store.get_by_user(
+                alert.userID
+            )
 
+            for subscription in subscriptions:
+                send_push(
+                    subscription,
+                    message["title"],
+                    message["body"]
+                )
+
+        # Email notification
+        if channels.get("email", True):
+            email = profile.get("email")
+
+            if email:
+                send_email(
+                    email,
+                    message["title"],
+                    message["body"]
+                )
     return {
-        "message": "Push sent",
-        "subscriptions": len(subscriptions)
+        "processed": len(event.get("Records", []))
     }
 
 # AWS Lambda entry point
