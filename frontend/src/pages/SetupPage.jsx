@@ -88,14 +88,14 @@ function SetupFlow({ initial }) {
             Step {step + 1} of {STEPS.length}
           </span>
         </div>
-
         <div>
           <h1 className="page-title">{STEPS[step].title}</h1>
           <p className="muted">{STEPS[step].sub}</p>
         </div>
-
         {step === 0 && <PlacesEditor places={places} onChange={setPlaces} />}
-        {step === 1 && <LimitsEditor value={limits} onChange={setLimits} />}
+        {step === 1 && (
+          <LimitsEditor value={limits} onChange={setLimits} showSuggestions />
+        )}
         {step === 2 && (
           <ChannelsEditor
             value={channels}
@@ -103,13 +103,11 @@ function SetupFlow({ initial }) {
             email={initial.email}
           />
         )}
-
         {error && (
           <p className="settings-error" role="alert">
             {error}
           </p>
         )}
-
         <div className="setup-actions">
           {step > 0 ? (
             <button
