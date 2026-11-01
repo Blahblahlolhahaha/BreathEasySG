@@ -98,7 +98,7 @@ TABLE_NAME = os.environ.get("TABLE_NAME")
 store = DynamoStore(TABLE_NAME) if TABLE_NAME else MemoryStore()
 
 def send_push(subscription, title, body):
-    vapid_private_key = os.environ.get("VAPID_PRIVATE_KEY")
+    vapid_private_key = os.environ.get("VITE_VAPID_PRIVATE_KEY")
 
     if not vapid_private_key:
         raise RuntimeError("VAPID_PRIVATE_KEY is not set")
