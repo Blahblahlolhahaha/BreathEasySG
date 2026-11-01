@@ -30,10 +30,10 @@ Resources:
     Properties:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: userID
+        - AttributeName: userId
           AttributeType: S
       KeySchema:
-        - AttributeName: userID
+        - AttributeName: userId
           KeyType: HASH
 
   ProfileApi:

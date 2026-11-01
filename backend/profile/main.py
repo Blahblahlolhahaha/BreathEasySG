@@ -89,7 +89,7 @@ def to_plain(value):
 
 
 class DynamoStore:
-    """Keeps profiles in a DynamoDB table with one row per user (userID = the Cognito sub)."""
+    """Keeps profiles in a DynamoDB table with one row per user (userId = the Cognito sub)."""
 
     def __init__(self, table_name):
         import boto3
@@ -97,11 +97,11 @@ class DynamoStore:
         self.table = boto3.resource("dynamodb").Table(table_name)
 
     def get(self, user_id):
-        item = self.table.get_item(Key={"userID": user_id}).get("Item")
+        item = self.table.get_item(Key={"userId": user_id}).get("Item")
         return to_plain(item) if item else None
 
     def put(self, user_id, item):
-        row = {**item, "userID": user_id, "updatedAt": datetime.now(timezone.utc).isoformat()}
+        row = {**item, "userId": user_id, "updatedAt": datetime.now(timezone.utc).isoformat()}
         self.table.put_item(Item=to_dynamo(row))
 
 
