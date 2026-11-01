@@ -10,7 +10,6 @@ import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
 import AlertsPage from './pages/AlertsPage'
 import ProfilePage from './pages/ProfilePage'
-import NotificationTestPage from './pages/NotificationTestPage'
 import { useAuth } from './auth/AuthContext'
 
 /** Sends signed-out visitors to the login page, then back where they were going. Waits while the login is being restored. */
@@ -38,12 +37,6 @@ export default function App() {
       <Route path="/" element={<PublicMapPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<LoginPage />} />
-
-      {/* TEMPORARY: notification development */}
-      <Route
-        path="/notification-test"
-        element={<NotificationTestPage />}
-      />
 
       {/* Signed-in only */}
       <Route element={<RequireAuth />}>

@@ -115,7 +115,7 @@ def send_push(subscription, title, body):
         vapid_claims={
         "sub": os.environ.get(
             "VAPID_SUBJECT",
-            "mailto:breatheasysg@example.com"
+            "mailto:breatheasy.corp@gmail.com"
         )
         },
     )
