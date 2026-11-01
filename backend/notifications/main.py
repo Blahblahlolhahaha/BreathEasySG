@@ -265,7 +265,7 @@ def get_user_profile(user_id):
     table = boto3.resource("dynamodb").Table(table_name)
 
     response = table.get_item(
-        Key={"userID": user_id}
+        Key={"userId": user_id}
     )
 
     return response.get("Item")
