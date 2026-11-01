@@ -43,6 +43,7 @@ export function TrendChart({ series, metric, limit, forecast, height = 200 }) {
     : series
 
   return (
+    <>
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 18, right: 8, left: -14, bottom: 0 }}>
         <defs>
@@ -68,7 +69,6 @@ export function TrendChart({ series, metric, limit, forecast, height = 200 }) {
             stroke={colors.bad}
             strokeDasharray="5 4"
             strokeWidth={1.5}
-            label={{ value: `Your limit ${limit}`, position: 'insideTopRight', fill: colors.bad, fontSize: 12, fontWeight: 600 }}
           />
         )}
         <Area
@@ -101,5 +101,19 @@ export function TrendChart({ series, metric, limit, forecast, height = 200 }) {
         )}
       </ComposedChart>
     </ResponsiveContainer>
+    {/* Key under the chart instead of a label on the line, so it never overlaps the data. */}
+    <div className="chart-key">
+      {limit != null && (
+        <span>
+          <i className="chart-key-limit" aria-hidden="true" /> Your limit {limit}
+        </span>
+      )}
+      {forecast?.length > 0 && (
+        <span>
+          <i className="chart-key-estimate" aria-hidden="true" /> Estimate
+        </span>
+      )}
+    </div>
+    </>
   )
 }

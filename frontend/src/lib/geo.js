@@ -1,6 +1,15 @@
 // Map settings and the maths that blends region colours across the map.
 
 export const SG_CENTER = [1.3521, 103.8198]
+
+/** NEA's 5 reporting regions, with the label positions from NEA's regionMetadata ("national" isn't shown). */
+export const NEA_REGIONS = [
+  { id: 'north', name: 'North', lat: 1.41803, lng: 103.82 },
+  { id: 'south', name: 'South', lat: 1.29587, lng: 103.82 },
+  { id: 'east', name: 'East', lat: 1.35735, lng: 103.94 },
+  { id: 'west', name: 'West', lat: 1.35735, lng: 103.7 },
+  { id: 'central', name: 'Central', lat: 1.35735, lng: 103.82 },
+]
 /** Box around Singapore's land area, used for the colour overlay. */
 export const LAND_BOUNDS = [
   [1.15, 103.59],

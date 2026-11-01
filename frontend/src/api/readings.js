@@ -1,9 +1,28 @@
-// Gets the air readings for all regions: made-up data for now, the real backend once its address is set.
+// Gets the air readings for all regions: made-up data until the backend address is set, then Data Ingestion's GET /api/readings.
 import { config } from '../config'
+import { NEA_REGIONS } from '../lib/geo'
 import { apiFetch } from './client'
 import { mockGetReadings } from './mock/mockReadings'
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v)
+
+/**
+ * Converts Data Ingestion's GET /api/readings (backend/psi_api) into the shape the dashboard draws.
+ * Theirs: hourly snapshots, oldest first, each a { region: value } object:
+ *   { psi_24: [{ north, south, ... }], pm25_1: [{ north, ... }], timestamps: ['2026-10-28T13:00:00+08:00', ...] }
+ * Ours: { updatedAt, regions: [{ id, name, lat, lng, psi24, pm25 }], history: [{ time, psi24: {...}, pm25: {...} }] }
+ */
+function fromDataIngestion(raw) {
+  const times = raw.timestamps || []
+  const history = times.map((time, i) => ({ time, psi24: raw.psi_24?.[i] || {}, pm25: raw.pm25_1?.[i] || {} }))
+  const latest = history[history.length - 1]
+  return {
+    updatedAt: latest?.time,
+    // The latest snapshot gives the "now" values; positions are NEA's fixed region labels.
+    regions: latest ? NEA_REGIONS.map((r) => ({ ...r, psi24: latest.psi24[r.id], pm25: latest.pm25[r.id] })) : [],
+    history,
+  }
+}
 
 /**
  * Checks the response has what the dashboard draws, so a wrong shape shows the
@@ -32,7 +51,8 @@ function checkReadings(data) {
  * The shape the dashboard expects is documented in frontend/INTEGRATION.md.
  */
 export async function getReadings({ signal } = {}) {
-  // PLACEHOLDER — Data Ingestion: the real GET /api/readings endpoint (cached NEA data) replaces the mock.
-  const data = config.useMock ? await mockGetReadings() : await apiFetch('/api/readings', { signal })
-  return checkReadings(data)
+  if (config.useMock) return checkReadings(await mockGetReadings())
+  const raw = await apiFetch('/api/readings', { signal })
+  // Accept either shape, so the dashboard keeps working if the backend later sends ours directly.
+  return checkReadings(Array.isArray(raw?.regions) ? raw : fromDataIngestion(raw))
 }

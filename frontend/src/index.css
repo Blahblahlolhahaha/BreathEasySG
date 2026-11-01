@@ -18,6 +18,7 @@
   --bad: #c8402c;
   --ok: #2c9a63;
   --warn-bg: #fff0e3;
+  --map-sea: #6da8e4; /* OneMap Default style's sea */
   --warn-fg: #8e3a0c;
   --warn-line: #f3b98f;
   --info-bg: #e7f2f4;
@@ -45,6 +46,7 @@
     --bad: #f06a55;
     --ok: #4cc88a;
     --warn-bg: #3a2317;
+  --map-sea: #003753; /* OneMap Night style's sea */
     --warn-fg: #ffcba6;
     --warn-line: #7a4326;
     --info-bg: #16303a;
@@ -68,6 +70,7 @@
   --bad: #f06a55;
   --ok: #4cc88a;
   --warn-bg: #3a2317;
+  --map-sea: #003753; /* OneMap Night style's sea */
   --warn-fg: #ffcba6;
   --warn-line: #7a4326;
   --info-bg: #16303a;
@@ -884,6 +887,26 @@ select {
   font-size: 14px;
   color: var(--muted);
 }
+.chart-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.chart-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-key i {
+  width: 18px;
+  border-top: 2px dashed var(--bad);
+}
+.chart-key .chart-key-estimate {
+  border-top: 2px dotted var(--muted);
+}
 .chart-tip {
   display: flex;
   flex-direction: column;
@@ -972,6 +995,10 @@ select {
   inset: 0;
   background: var(--surface-2);
   font-family: var(--font);
+}
+/* Outside OneMap's tile area, show the tiles' sea colour instead of Leaflet's grey. */
+.airmap .leaflet-container {
+  background: var(--map-sea);
 }
 .airmap.is-full {
   position: fixed;
