@@ -53,7 +53,7 @@ Resources:
           Properties:
             Description: Invoke the refresher Lambda every fifteen minutes
             OmitName: true
-            ScheduleExpression: cron(2/15 * * * ? *)
+            ScheduleExpression: cron(1/15 * * * ? *)
             ScheduleExpressionTimezone: Asia/Singapore
             FlexibleTimeWindow:
               Mode: 'OFF'
