@@ -16,8 +16,8 @@ def get_mock_psi(coords: Coords):
     """
     return {
         "region_info": "central",
-        "psi_24": 95,   
-        "pm25_1": 45   
+        "psi_24": 200,   
+        "pm25_1": 60   
     }
 
 if __name__ == "__main__":

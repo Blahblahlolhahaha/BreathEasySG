@@ -1,48 +1,83 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: >
-  alerts-service
+Description: BreathEasySG alerts API (POST /api/alerts/check). Alert state is stored in the users table as alertState.
 
-  Sample SAM Template for alerts-service
+Parameters:
+  UserPoolArn:
+    Type: String
+    Description: ARN of the Cognito user pool that signs users in
+  UsersTableName:
+    Type: String
+    Description: Name of the users table (owned by the profile template)
+  LocationsTableName:
+    Type: String
+    Description: Name of the locations table
+  PsiServiceUrl:
+    Type: String
+    Description: URL of the PSI service this function calls
+  DynamoEndpoint:
+    Type: String
+    Default: ""
+    Description: Leave empty on AWS. For local use, e.g. http://dynamodb-local:8000
+  DevUserId:
+    Type: String
+    Default: ""
+    Description: LOCAL TESTING ONLY. Fake userId used when there is no Cognito login. Leave empty on AWS.
 
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 29 # API Gateway cuts off at 29s; several PSI fetches may take a while
+    MemorySize: 256
 
-    Tracing: Active
-    # You can add LoggingConfig parameters such as the Logformat, Log Group, and SystemLogLevel or ApplicationLogLevel. Learn more here https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/sam-resource-function.html#sam-function-loggingconfig.
-    LoggingConfig:
-      LogFormat: JSON
-  Api:
-    TracingEnabled: true
 Resources:
-  HelloWorldFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  AlertsApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !Ref UserPoolArn
+
+  AlertsFunction:
+    Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
-      Handler: main.app
-      Runtime: python3.14
+      Handler: main.handler
+      Runtime: python3.12
       Architectures:
         - x86_64
+      Environment:
+        Variables:
+          USERS_TABLE_NAME: !Ref UsersTableName
+          LOCATIONS_TABLE_NAME: !Ref LocationsTableName
+          PSI_SERVICE_URL: !Ref PsiServiceUrl
+          DYNAMODB_ENDPOINT: !Ref DynamoEndpoint
+          DEV_USER_ID: !Ref DevUserId
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UsersTableName}"
+        - DynamoDBReadPolicy:
+            TableName: !Ref LocationsTableName
       Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+        CheckAlerts:
+          Type: Api
           Properties:
-            Path: /hello
-            Method: get
+            RestApiId: !Ref AlertsApi
+            Path: /api/alerts/check
+            Method: post
 
 Outputs:
-  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
-  # Find out more about other implicit resources you can reference within SAM
-  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  HelloWorldApi:
-    Description: API Gateway endpoint URL for Prod stage for Hello World
-      function
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/hello/"
-  HelloWorldFunction:
-    Description: Hello World Lambda Function ARN
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: Implicit IAM Role created for Hello World function
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+  AlertsApiUrl:
+    Description: Put this in VITE_ALERTS_API_URL (or VITE_API_URL once everything shares one API)
+    Value: !Sub "https://${AlertsApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod"

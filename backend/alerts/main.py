@@ -1,25 +1,100 @@
+import os
+from decimal import Decimal
+
+import boto3
 import fastapi
 import requests
+from mangum import Mangum
 from pydantic import BaseModel
-import os
-from profile.main import Place, current_user, store, DEFAULT_LIMITS
-from psi_api.psi.main import Coords
-from .tests.load_demo_data import DEMO_STORE
 
 app = fastapi.FastAPI()
 
+DEFAULT_LIMITS = {"psi24": 100, "pm25": 55}
+METRIC_FIELD = {"psi24": "psi_24", "pm25": "pm25_1"}
+
+
+class Coords(BaseModel):
+    latitude: float
+    longitude: float
+
+
+# ---------- DynamoDB ----------
+_ddb = boto3.resource(
+    "dynamodb",
+    endpoint_url=os.environ.get("DYNAMODB_ENDPOINT") or None,  # empty on real AWS
+    region_name=os.environ.get("AWS_REGION", "ap-southeast-1"),
+)
+_users = _ddb.Table(os.environ["USERS_TABLE_NAME"])
+LOCATIONS_TABLE = os.environ["LOCATIONS_TABLE_NAME"]
+
+
+# ---------- models ----------
 class AlertCheck(BaseModel):
-    """Request body for checking alerts"""
-    coords: Coords | None = None  
-    places: list[Place] | None = []  
+    """Request body for checking alerts. Places are read from the DB, not the request."""
+    coords: Coords | None = None
+
+
 class MetricBreach(BaseModel):
     metric: str
     value: float | int
     limit: int
 
+
+class AlertEvent(BaseModel):
+    place_id: str 
+    label: str | None = None 
+    metric: str
+    value: float | int | None = None
+    limit: int | None = None
+
+
 class AlertResponse(BaseModel):
     current: list[MetricBreach] = []
-    places: dict[str, list[MetricBreach]] = {}
+    places: dict[str, list[MetricBreach]] = {}  
+    new_alerts: list[AlertEvent] = [] 
+    recovered: list[AlertEvent] = []  
+    channels: dict[str, bool] = {}  
+
+
+# ---------- auth ----------
+def current_user(request: fastapi.Request) -> dict:
+    """Read the signed-in user from the Cognito claims that API Gateway passes in."""
+    event = request.scope.get("aws.event", {})
+    claims = event.get("requestContext", {}).get("authorizer", {}).get("claims", {})
+    user_id = claims.get("sub") or os.environ.get("DEV_USER_ID") 
+    if not user_id:
+        raise fastapi.HTTPException(status_code=401, detail="Not signed in")
+    return {"sub": user_id}
+
+
+# ---------- helpers ----------
+def clean(x):
+    """DynamoDB returns numbers as Decimal."""
+    if isinstance(x, Decimal):
+        return int(x) if x == x.to_integral_value() else float(x)
+    return x
+
+
+def get_locations(loc_ids: list[str]) -> dict[str, dict]:
+    if not loc_ids:
+        return {}
+    keys = [{"locId": i} for i in set(loc_ids)]
+    resp = _ddb.batch_get_item(RequestItems={LOCATIONS_TABLE: {"Keys": keys}})
+    return {l["locId"]: l for l in resp["Responses"][LOCATIONS_TABLE]}
+
+
+def load_alert_state(profile: dict) -> dict[str, bool]:
+    return dict(profile.get("alertState") or {})
+
+
+def save_alert_state(user_id: str, state: dict[str, bool]) -> None:
+    _users.update_item(
+        Key={"userId": user_id},
+        UpdateExpression="SET alertState = :s",
+        ConditionExpression="attribute_exists(userId)",
+        ExpressionAttributeValues={":s": state},
+    )
+
 
 def fetch_psi_for_coords(coords: Coords) -> dict | None:
     """Fetch PSI data from the PSI service for given coordinates"""
@@ -28,7 +103,7 @@ def fetch_psi_for_coords(coords: Coords) -> dict | None:
         response = requests.post(
             psi_service_url,
             json={"latitude": coords.latitude, "longitude": coords.longitude},
-            timeout=5
+            timeout=5,
         )
         if response.status_code == 200:
             return response.json()
@@ -37,10 +112,11 @@ def fetch_psi_for_coords(coords: Coords) -> dict | None:
         print(f"Error fetching PSI data: {e}")
         return None
 
+
 def check_breaches(psi_data: dict, limits) -> list[MetricBreach]:
     """Check if PSI/PM2.5 values exceed the given limits"""
     breaches = []
-    
+
     if not psi_data or not limits:
         return breaches
 
@@ -50,64 +126,136 @@ def check_breaches(psi_data: dict, limits) -> list[MetricBreach]:
         limits_dict = limits
     else:
         return breaches
-    
+
     psi_24 = psi_data.get("psi_24")
     pm25_1 = psi_data.get("pm25_1")
-    
+
     psi_limit = limits_dict.get("psi24", 100)
     pm25_limit = limits_dict.get("pm25", 55)
-    
+
     if psi_24 is not None and psi_24 > psi_limit:
         breaches.append(MetricBreach(metric="psi24", value=psi_24, limit=psi_limit))
-    
+
     if pm25_1 is not None and pm25_1 > pm25_limit:
         breaches.append(MetricBreach(metric="pm25", value=pm25_1, limit=pm25_limit))
-    
+
     return breaches
 
+
+def diff_state(place_id, label, breaches, psi_data, state, response) -> None:
+    """Compare was_over (saved) vs is_over (now) per metric, record events, update state."""
+    over_now = {b.metric: b for b in breaches}
+
+    for metric, field in METRIC_FIELD.items():
+        key = f"{place_id}:{metric}"
+        was_over = state.get(key, False)
+        is_over = metric in over_now
+
+        if is_over and not was_over:
+            b = over_now[metric]
+            response.new_alerts.append(
+                AlertEvent(place_id=place_id, label=label, metric=metric,
+                           value=b.value, limit=b.limit)
+            )
+        elif was_over and not is_over:
+            response.recovered.append(
+                AlertEvent(place_id=place_id, label=label, metric=metric,
+                           value=psi_data.get(field))
+            )
+
+        state[key] = is_over
+
+
+# ---------- endpoint ----------
 @app.post("/api/alerts/check")
 async def check_alerts(alert_check: AlertCheck, request: fastapi.Request):
     """
-    Check if current location or saved places exceed user's PSI/PM2.5 thresholds.
-    Returns only locations where breaches occurred.
+    Check the user's current location and saved places against their PSI/PM2.5 thresholds.
+    Returns what is over the limit now, plus only the changes (new_alerts / recovered).
     """
-    #FOR TESTING demo-data.json ONLY
-    # user_id = "demo-user-one-place"  
-    # user = {"sub": user_id}
-    
-    # saved_profile = DEMO_STORE.get(user_id)
-    # if not saved_profile:
-    #     raise fastapi.HTTPException(status_code=404, detail="Demo user not found")
-    
-    # global_limits = saved_profile.get("limits", DEFAULT_LIMITS)
-
     user = current_user(request)
-    saved_profile = store.get(user["sub"])
-    
-    if not saved_profile:
+    profile = _users.get_item(Key={"userId": user["sub"]}).get("Item")
+    if not profile:
         raise fastapi.HTTPException(status_code=404, detail="Profile not found")
 
-    global_limits = saved_profile.get("limits", DEFAULT_LIMITS)
-    
-    response = AlertResponse()
-    
+    global_limits = {k: clean(v) for k, v in
+                     (profile.get("limits") or DEFAULT_LIMITS).items()}
+    places = profile.get("places", [])
+    locations = get_locations([p["locId"] for p in places])
+
+    state = load_alert_state(profile)
+    response = AlertResponse(channels=dict(profile.get("channels", {})))
+
     # 1. Check current GPS location
     if alert_check.coords:
         psi_data = fetch_psi_for_coords(alert_check.coords)
-        if psi_data:
-            response.current = check_breaches(psi_data, global_limits)
-    
+        if psi_data:  # if fetch failed, leave state untouched
+            breaches = check_breaches(psi_data, global_limits)
+            response.current = breaches
+            diff_state("current", "Current location", breaches, psi_data, state, response)
+
     # 2. Check each saved place
-    places_to_check = alert_check.places or []
-    for place in places_to_check:
-        place_coords = Coords(latitude=place.lat, longitude=place.lng)
-        psi_data = fetch_psi_for_coords(place_coords)
-        
-        if psi_data:
-            place_limits = place.limits if place.limits else global_limits
-            breaches = check_breaches(psi_data, place_limits)
-            
-            if breaches: 
-                response.places[place.id] = breaches
-    
+    psi_by_region: dict[str, dict | None] = {}
+
+    for place in places:
+        loc = locations.get(place["locId"])
+
+        if not loc:
+            continue
+
+        latitude = loc.get("latitude")
+        longitude = loc.get("longitude")
+        region = loc.get("region")
+
+        if latitude is None or longitude is None:
+            continue
+
+        cache_key = region or f"{latitude},{longitude}"
+
+        if cache_key not in psi_by_region:
+            psi_by_region[cache_key] = fetch_psi_for_coords(
+                Coords(
+                    latitude=float(latitude),
+                    longitude=float(longitude),
+                )
+            )
+
+        psi_data = psi_by_region[cache_key]
+
+        if not psi_data:
+            # Fetch failed: do not change the previous alert state
+            continue
+
+        limits = {
+            **global_limits,
+            **{
+                key: clean(value)
+                for key, value in (place.get("limits") or {}).items()
+            },
+        }
+
+        breaches = check_breaches(psi_data, limits)
+
+        if breaches:
+            response.places[place["locId"]] = breaches
+
+        diff_state(
+            place_id=place["locId"],
+            label=place.get("label") or loc["name"],
+            breaches=breaches,
+            psi_data=psi_data,
+            state=state,
+            response=response,
+        )
+
+    # prune state for places the user has since deleted, then save
+    valid = {f"{p['locId']}:{m}" for p in places for m in METRIC_FIELD} \
+            | {f"current:{m}" for m in METRIC_FIELD}
+    state = {k: v for k, v in state.items() if k in valid}
+    save_alert_state(user["sub"], state)
+
     return response
+
+
+# AWS Lambda entry point (template.yaml: Handler: main.handler)
+handler = Mangum(app)
