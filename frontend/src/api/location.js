@@ -12,7 +12,7 @@ export const REGIONS = [
   { id: "central", name: "Central", lat: 1.35735, lng: 103.82 },
 ];
 
-export async function findRegionForCoords(lat, lng) {
+export function findRegionForCoords(lat, lng) {
   let closest = REGIONS[0];
   let minDst = Infinity;
   for (const r of REGIONS) {

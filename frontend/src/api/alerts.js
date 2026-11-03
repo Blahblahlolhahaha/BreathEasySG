@@ -1,4 +1,4 @@
-import { apiFetch } from './apiFetch'
+import { apiFetch } from './client'
 
 export async function getLimitBreaches({ coords } = {}) {
   try {
