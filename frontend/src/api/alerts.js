@@ -1,31 +1,28 @@
+import { apiFetch } from './apiFetch'
 
-export async function getLimitBreaches({ coords, places = [] }) {
+export async function getLimitBreaches({ coords } = {}) {
   try {
-    const response = await fetch('/api/alerts/check', {
+    return await apiFetch('/api/alerts/check', {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getAuthToken()}` // Include auth token
+      auth: true,
+      body: {
+        coords: coords
+          ? {
+              latitude: coords.lat,
+              longitude: coords.lng,
+            }
+          : null,
       },
-      body: JSON.stringify({
-        coords: coords ? { latitude: coords.lat, longitude: coords.lng } : null,
-        places: places
-      }),
     })
-
-    if (!response.ok) {
-      throw new Error(`Alert check failed: ${response.status}`)
-    }
-
-    return await response.json()
   } catch (error) {
     console.error('Error checking alerts:', error)
-    return { current: [], places: {} }
-  }
-}
 
-// Helper to get auth token (adjust based on your auth implementation)
-function getAuthToken() {
-  // Get from localStorage, cookie, or your auth context
-  return localStorage.getItem('authToken') || ''
+    return {
+      current: [],
+      places: {},
+      new_alerts: [],
+      recovered: [],
+      channels: {},
+    }
+  }
 }
