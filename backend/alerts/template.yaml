@@ -12,7 +12,7 @@ Parameters:
   LocationsTableName:
     Type: String
     Description: Name of the locations table
-  PsiDataTableName:
+  PSIApi:
     Type: String
     Description: URL of the PSI service this function calls
   DynamoEndpoint:
