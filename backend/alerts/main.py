@@ -1,19 +1,29 @@
 import os
 from decimal import Decimal
-
+from fastapi.middleware.cors import CORSMiddleware
 import boto3
 import fastapi
 import requests
 from mangum import Mangum
 from pydantic import BaseModel
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 app = fastapi.FastAPI()
 
+# configure CORS
+origins = os.environ.get(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:5174"
+).split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_methods=["POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
 DEFAULT_LIMITS = {"psi24": 100, "pm25": 55}
 METRIC_FIELD = {"psi24": "psi_24", "pm25": "pm25_1"}
-PSI_TIMEZONE = ZoneInfo("Asia/Singapore")
 
 class Coords(BaseModel):
     latitude: float
