@@ -4,7 +4,8 @@ const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 export const config = {
   /** API Gateway base URL, e.g. https://abc123.execute-api.ap-southeast-1.amazonaws.com/Prod */
   apiUrl,
-
+  alertsApiUrl:
+    (import.meta.env.VITE_ALERTS_API_URL || '').replace(/\/$/, ''),
   notificationsApiUrl:
     (import.meta.env.VITE_NOTIFICATIONS_API_URL || '').replace(/\/$/, ''),
   /** true = use placeholder data from src/api/mock. Stays true until VITE_API_URL is set. */

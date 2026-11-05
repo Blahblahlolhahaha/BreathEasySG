@@ -1,10 +1,12 @@
 import { apiFetch } from './client'
+import { config } from "../config"
 
 export async function getLimitBreaches({ coords } = {}) {
   try {
     return await apiFetch('/api/alerts/check', {
       method: 'POST',
       auth: true,
+      baseUrl: config.alertsApiUrl,
       body: {
         coords: coords
           ? {
