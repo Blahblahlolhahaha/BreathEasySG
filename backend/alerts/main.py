@@ -1,6 +1,6 @@
 import os
 from decimal import Decimal
-
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import boto3
 import fastapi
@@ -12,20 +12,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = fastapi.FastAPI()
 
+# configure CORS
+origins = os.environ.get(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:5174"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_methods=["POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 DEFAULT_LIMITS = {"psi24": 100, "pm25": 55}
 METRIC_FIELD = {"psi24": "psi_24", "pm25": "pm25_1"}
-
 
 class Coords(BaseModel):
     latitude: float
@@ -39,7 +40,6 @@ _ddb = boto3.resource(
     region_name=os.environ.get("AWS_REGION", "ap-southeast-1"),
 )
 _users = _ddb.Table(os.environ["USERS_TABLE_NAME"])
-LOCATIONS_TABLE = os.environ["LOCATIONS_TABLE_NAME"]
 
 _sqs = boto3.client("sqs")
 ALERT_QUEUE_URL = os.environ.get("ALERT_QUEUE_URL")
@@ -92,13 +92,6 @@ def clean(x):
     return x
 
 
-def get_locations(loc_ids: list[str]) -> dict[str, dict]:
-    if not loc_ids:
-        return {}
-    keys = [{"locId": i} for i in set(loc_ids)]
-    resp = _ddb.batch_get_item(RequestItems={LOCATIONS_TABLE: {"Keys": keys}})
-    return {l["locId"]: l for l in resp["Responses"][LOCATIONS_TABLE]}
-
 
 def load_alert_state(profile: dict) -> dict[str, bool]:
     return dict(profile.get("alertState") or {})
@@ -112,21 +105,35 @@ def save_alert_state(user_id: str, state: dict[str, bool]) -> None:
         ExpressionAttributeValues={":s": state},
     )
 
-
 def fetch_psi_for_coords(coords: Coords) -> dict | None:
-    """Fetch PSI data from the PSI service for given coordinates"""
     try:
-        psi_service_url = os.environ.get("PSI_SERVICE_URL", "http://localhost:8000/api/psi")
+        psi_api = os.environ["PSI_API"]
+
         response = requests.post(
-            psi_service_url,
-            json={"latitude": coords.latitude, "longitude": coords.longitude},
+            psi_api,
+            json={
+                "latitude": coords.latitude,
+                "longitude": coords.longitude,
+            },
             timeout=5,
         )
-        if response.status_code == 200:
-            return response.json()
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        if "psi_24" not in data or "pm25_1" not in data:
+            print(f"Unexpected PSI response: {data}")
+            return None
+
+        return data
+
+    except requests.RequestException as error:
+        print(f"Error fetching PSI API: {error}")
         return None
-    except Exception as e:
-        print(f"Error fetching PSI data: {e}")
+
+    except ValueError as error:
+        print(f"Invalid PSI JSON response: {error}")
         return None
 
 
@@ -223,7 +230,6 @@ async def check_alerts(alert_check: AlertCheck, request: fastapi.Request):
     global_limits = {k: clean(v) for k, v in
                      (profile.get("limits") or DEFAULT_LIMITS).items()}
     places = profile.get("places", [])
-    locations = get_locations([p["locId"] for p in places])
 
     state = load_alert_state(profile)
     response = AlertResponse(channels=dict(profile.get("channels", {})))
@@ -240,19 +246,15 @@ async def check_alerts(alert_check: AlertCheck, request: fastapi.Request):
     psi_by_region: dict[str, dict | None] = {}
 
     for place in places:
-        loc = locations.get(place["locId"])
+        place_id = place.get("id")
+        latitude = place.get("lat")
+        longitude = place.get("lng")
+        region_id = place.get("regionId")
 
-        if not loc:
+        if not place_id or latitude is None or longitude is None:
             continue
 
-        latitude = loc.get("latitude")
-        longitude = loc.get("longitude")
-        region = loc.get("region")
-
-        if latitude is None or longitude is None:
-            continue
-
-        cache_key = region or f"{latitude},{longitude}"
+        cache_key = region_id or f"{latitude},{longitude}"
 
         if cache_key not in psi_by_region:
             psi_by_region[cache_key] = fetch_psi_for_coords(
@@ -265,7 +267,6 @@ async def check_alerts(alert_check: AlertCheck, request: fastapi.Request):
         psi_data = psi_by_region[cache_key]
 
         if not psi_data:
-            # Fetch failed: do not change the previous alert state
             continue
 
         limits = {
@@ -279,19 +280,18 @@ async def check_alerts(alert_check: AlertCheck, request: fastapi.Request):
         breaches = check_breaches(psi_data, limits)
 
         if breaches:
-            response.places[place["locId"]] = breaches
+            response.places[place_id] = breaches
 
         diff_state(
-            place_id=place["locId"],
-            label=place.get("label") or loc["name"],
+            place_id=place_id,
+            label=place.get("label") or place.get("address"),
             breaches=breaches,
             psi_data=psi_data,
             state=state,
             response=response,
         )
 
-    # prune state for places the user has since deleted, then save
-    valid = {f"{p['locId']}:{m}" for p in places for m in METRIC_FIELD} \
+    valid = {f"{p['id']}:{m}" for p in places for m in METRIC_FIELD} \
             | {f"current:{m}" for m in METRIC_FIELD}
     state = {k: v for k, v in state.items() if k in valid}
     save_alert_state(user["sub"], state)

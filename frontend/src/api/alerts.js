@@ -1,13 +1,12 @@
 import { apiFetch } from './client'
-
-const ALERTS_API_URL = import.meta.env.VITE_ALERTS_API_URL
+import { config } from "../config"
 
 export async function getLimitBreaches({ coords } = {}) {
   try {
     return await apiFetch('/api/alerts/check', {
       method: 'POST',
       auth: true,
-      baseUrl: ALERTS_API_URL,
+      baseUrl: config.alertsApiUrl,
       body: {
         coords: coords
           ? {

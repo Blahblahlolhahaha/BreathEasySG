@@ -9,10 +9,7 @@ Parameters:
   UsersTableName:
     Type: String
     Description: Name of the users table (owned by the profile template)
-  LocationsTableName:
-    Type: String
-    Description: Name of the locations table
-  PsiServiceUrl:
+  PSIApi:
     Type: String
     Description: URL of the PSI service this function calls
   DynamoEndpoint:
@@ -62,8 +59,7 @@ Resources:
       Environment:
         Variables:
           USERS_TABLE_NAME: !Ref UsersTableName
-          LOCATIONS_TABLE_NAME: !Ref LocationsTableName
-          PSI_SERVICE_URL: !Ref PsiServiceUrl
+          PSI_API: !Ref PSIApi
           DYNAMODB_ENDPOINT: !Ref DynamoEndpoint
           DEV_USER_ID: !Ref DevUserId
           ALERT_QUEUE_URL: !Ref AlertQueueUrl
@@ -79,8 +75,6 @@ Resources:
               Action:
                 - sqs:SendMessage
               Resource: !Ref AlertQueueArn
-        - DynamoDBReadPolicy:
-            TableName: !Ref LocationsTableName
       Events:
         CheckAlerts:
           Type: Api
