@@ -216,8 +216,8 @@ class AlertEvent(BaseModel):
     userID: str
     eventType: str
     metric: str
-    value: float
-    limit: float
+    value: float | None = None
+    limit: float | None = None
     locationName: str
     
 def format_alert_message(alert: AlertEvent):
@@ -244,8 +244,7 @@ def format_alert_message(alert: AlertEvent):
         return {
             "title": "Air Quality Back to Normal",
             "body": (
-                f"{metric} at {alert.locationName} is back below "
-                f"your threshold of {alert.limit}. "
+                f"{metric} at {alert.locationName} is back to normal. "
                 f"Current level: {alert.value}."
             )
         }

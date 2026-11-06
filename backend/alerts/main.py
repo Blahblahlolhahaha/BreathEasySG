@@ -1,13 +1,27 @@
 import os
 from decimal import Decimal
 
+import json
 import boto3
 import fastapi
 import requests
 from mangum import Mangum
 from pydantic import BaseModel
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = fastapi.FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 DEFAULT_LIMITS = {"psi24": 100, "pm25": 55}
 METRIC_FIELD = {"psi24": "psi_24", "pm25": "pm25_1"}
@@ -26,6 +40,9 @@ _ddb = boto3.resource(
 )
 _users = _ddb.Table(os.environ["USERS_TABLE_NAME"])
 LOCATIONS_TABLE = os.environ["LOCATIONS_TABLE_NAME"]
+
+_sqs = boto3.client("sqs")
+ALERT_QUEUE_URL = os.environ.get("ALERT_QUEUE_URL")
 
 
 # ---------- models ----------
@@ -164,6 +181,31 @@ def diff_state(place_id, label, breaches, psi_data, state, response) -> None:
             )
 
         state[key] = is_over
+        
+        
+def send_notification_event(
+    user_id: str,
+    event_type: str,
+    alert: AlertEvent,
+) -> None:
+    """Send an alert state change to the Notifications SQS queue."""
+
+    if not ALERT_QUEUE_URL:
+        raise RuntimeError("ALERT_QUEUE_URL is not set")
+
+    message = {
+        "userID": user_id,
+        "eventType": event_type,
+        "metric": alert.metric,
+        "value": alert.value,
+        "limit": alert.limit,
+        "locationName": alert.label or alert.place_id,
+    }
+
+    _sqs.send_message(
+        QueueUrl=ALERT_QUEUE_URL,
+        MessageBody=json.dumps(message),
+    )
 
 
 # ---------- endpoint ----------
@@ -253,6 +295,22 @@ async def check_alerts(alert_check: AlertCheck, request: fastapi.Request):
             | {f"current:{m}" for m in METRIC_FIELD}
     state = {k: v for k, v in state.items() if k in valid}
     save_alert_state(user["sub"], state)
+
+    # # Send newly triggered alerts to Notifications
+    # for alert in response.new_alerts:
+    #     send_notification_event(
+    #         user_id=user["sub"],
+    #         event_type="THRESHOLD_BREACH",
+    #         alert=alert,
+    #     )
+
+    # # Send recovery alerts to Notifications
+    # for alert in response.recovered:
+    #     send_notification_event(
+    #         user_id=user["sub"],
+    #         event_type="BACK_TO_NORMAL",
+    #         alert=alert,
+    #     )
 
     return response
 

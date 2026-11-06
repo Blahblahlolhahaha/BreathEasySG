@@ -23,6 +23,12 @@ Parameters:
     Type: String
     Default: ""
     Description: LOCAL TESTING ONLY. Fake userId used when there is no Cognito login. Leave empty on AWS.
+  AlertQueueUrl:
+    Type: String
+    Description: URL of the SQS queue used for notification events
+  AlertQueueArn:
+    Type: String
+    Description: ARN of the SQS queue used for notification events
 
 Globals:
   Function:
@@ -60,6 +66,7 @@ Resources:
           PSI_SERVICE_URL: !Ref PsiServiceUrl
           DYNAMODB_ENDPOINT: !Ref DynamoEndpoint
           DEV_USER_ID: !Ref DevUserId
+          ALERT_QUEUE_URL: !Ref AlertQueueUrl
       Policies:
         - Statement:
             - Effect: Allow
@@ -67,6 +74,11 @@ Resources:
                 - dynamodb:GetItem
                 - dynamodb:UpdateItem
               Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UsersTableName}"
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !Ref AlertQueueArn
         - DynamoDBReadPolicy:
             TableName: !Ref LocationsTableName
       Events:
