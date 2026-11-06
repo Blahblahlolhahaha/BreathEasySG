@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
-import { Briefcase, GraduationCap, House, MapPin, Plus, X, Search } from "lucide-react";
-import {REGIONS, findRegionForCoords} from "../api/location.js"
+import {
+  Briefcase,
+  GraduationCap,
+  House,
+  MapPin,
+  Plus,
+  X,
+  Search,
+} from "lucide-react";
+import { REGIONS, findRegionForCoords } from "../api/location.js";
 import "./SettingsForm.css";
 
 const TYPES = [
@@ -43,8 +51,8 @@ function PlaceForm({ onAdd }) {
       try {
         const res = await fetch(
           `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(
-            searchQuery
-          )}&returnGeom=Y&getAddrDetails=Y`
+            searchQuery,
+          )}&returnGeom=Y&getAddrDetails=Y`,
         );
         const data = await res.json();
         setSearchResults(data.results || []);
@@ -83,11 +91,12 @@ function PlaceForm({ onAdd }) {
       return;
     }
 
-    const lat = selectedLocation ? selectedLocation.lat : REGIONS[4].lat;
-    const lng = selectedLocation ? selectedLocation.lng : REGIONS[4].lng;
-    const regionId = selectedLocation
-      ? selectedLocation.regionId
-      : findRegionForCoords(lat, lng);
+    // Without a picked result we would not know where the place is, so ask for one.
+    if (!selectedLocation) {
+      setError("Search for the address and pick one of the results.");
+      return;
+    }
+    const { lat, lng, regionId } = selectedLocation;
 
     onAdd({
       id: newId(),
@@ -130,10 +139,23 @@ function PlaceForm({ onAdd }) {
         </label>
       </div>
 
-      <div className="settings-add-row" style={{ position: "relative", "grid-template-columns": "1fr" }}>
-        <label className="settings-field" style={{ flex: "1 1 100%", width:"100%" }}>
+      <div
+        className="settings-add-row"
+        style={{ position: "relative", gridTemplateColumns: "1fr" }}
+      >
+        <label
+          className="settings-field"
+          style={{ flex: "1 1 100%", width: "100%" }}
+        >
           Search Location
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", width: "100%" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
             <input
               type="text"
               value={searchQuery}
@@ -148,7 +170,9 @@ function PlaceForm({ onAdd }) {
             />
             <Search size={18} aria-hidden="true" style={{ opacity: 0.6 }} />
           </div>
-          {loading && <span className="settings-hint">Searching OneMap...</span>}
+          {loading && (
+            <span className="settings-hint">Searching OneMap...</span>
+          )}
           {searchResults.length > 0 && (
             <ul
               className="onemap-dropdown"
@@ -157,8 +181,9 @@ function PlaceForm({ onAdd }) {
                 top: "100%",
                 left: 0,
                 right: 0,
-                background: "white",
-                border: "1px solid #ccc",
+                background: "var(--surface)",
+                color: "var(--fg)",
+                border: "1px solid var(--line)",
                 zIndex: 10,
                 maxHeight: "150px",
                 overflowY: "auto",
@@ -175,15 +200,21 @@ function PlaceForm({ onAdd }) {
                   style={{
                     padding: "8px 12px",
                     cursor: "pointer",
-                    borderBottom: "1px solid #eee",
+                    borderBottom: "1px solid var(--line)",
                     fontSize: "0.9rem",
                   }}
-                  onMouseEnter={(e) => (e.target.style.background = "#f5f5f5")}
-                  onMouseLeave={(e) => (e.target.style.background = "white")}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "var(--surface-2)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "var(--surface)")
+                  }
                 >
                   <strong>{item.BUILDING || item.SEARCHVAL}</strong>
                   <br />
-                  <small style={{ color: "#666" }}>{item.ADDRESS}</small>
+                  <small style={{ color: "var(--muted)" }}>
+                    {item.ADDRESS}
+                  </small>
                 </li>
               ))}
             </ul>

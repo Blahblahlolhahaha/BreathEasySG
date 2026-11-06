@@ -68,8 +68,15 @@ class MemoryStore:
     def get(self, user_id):
         return self.items.get(user_id)
 
-    def put(self, user_id, item):
-        self.items[user_id] = item
+    def create(self, user_id, item):
+        """Saves a new row, unless the user already has one."""
+        self.items.setdefault(user_id, item)
+
+    def update(self, user_id, changes):
+        """Changes only the given fields (a row is created if there is none) and returns the whole row."""
+        row = {**self.items.get(user_id, {}), **changes}
+        self.items[user_id] = row
+        return row
 
 
 def to_dynamo(value):
@@ -89,7 +96,8 @@ def to_plain(value):
 
 
 class DynamoStore:
-    """Keeps profiles in a DynamoDB table with one row per user (userId = the Cognito sub)."""
+    """Keeps profiles in a DynamoDB table with one row per user (userId = the Cognito sub).
+    The alerts service also writes to this row (alertState), so we never overwrite the whole row."""
 
     def __init__(self, table_name):
         import boto3
@@ -100,9 +108,26 @@ class DynamoStore:
         item = self.table.get_item(Key={"userId": user_id}).get("Item")
         return to_plain(item) if item else None
 
-    def put(self, user_id, item):
+    def create(self, user_id, item):
         row = {**item, "userId": user_id, "updatedAt": datetime.now(timezone.utc).isoformat()}
-        self.table.put_item(Item=to_dynamo(row))
+        try:
+            self.table.put_item(Item=to_dynamo(row), ConditionExpression="attribute_not_exists(userId)")
+        except self.table.meta.client.exceptions.ConditionalCheckFailedException:
+            pass  # the row was created a moment ago by another request: keep it
+
+    def update(self, user_id, changes):
+        changes = {**changes, "updatedAt": datetime.now(timezone.utc).isoformat()}
+        names = {f"#f{i}": key for i, key in enumerate(changes)}
+        values = {f":v{i}": to_dynamo(value) for i, value in enumerate(changes.values())}
+        sets = ", ".join(f"#f{i} = :v{i}" for i in range(len(changes)))
+        result = self.table.update_item(
+            Key={"userId": user_id},
+            UpdateExpression=f"SET {sets}",
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values,
+            ReturnValues="ALL_NEW",
+        )
+        return to_plain(result["Attributes"])
 
 
 # On AWS the template sets TABLE_NAME, so profiles go to DynamoDB. On your computer it is empty, so they stay in memory.
@@ -152,7 +177,25 @@ def build_profile(user: dict, saved: dict | None) -> dict:
 @app.get("/api/me")
 async def get_me(request: fastapi.Request):
     user = current_user(request)
-    return build_profile(user, store.get(user["sub"]))
+    email = user.get("email", "")
+    saved = store.get(user["sub"])
+
+    if saved is None:
+        # First visit: create the user's row now, so the alerts and notifications code can always find it.
+        saved = {
+            "name": user.get("name", ""),
+            "email": email,
+            "setupComplete": False,
+            "limits": DEFAULT_LIMITS,
+            "channels": DEFAULT_CHANNELS,
+            "places": [],
+        }
+        store.create(user["sub"], saved)
+    elif email and saved.get("email") != email:
+        # A row made without an email (for example demo data): add it, because notifications needs it.
+        saved = store.update(user["sub"], {"email": email})
+
+    return build_profile(user, saved)
 
 
 @app.put("/api/me")
@@ -164,9 +207,8 @@ async def update_me(update: ProfileUpdate, request: fastapi.Request):
     if len(ids) != len(set(ids)):
         raise fastapi.HTTPException(status_code=422, detail="Each place needs a different id")
 
-    # The email is saved too, so the alerts code can find where to send each user's email.
-    saved = {**(store.get(user["sub"]) or {}), **changes, "email": user.get("email", "")}
-    store.put(user["sub"], saved)
+    # Only the fields that were sent are changed. The email is saved too, so notifications can email the user.
+    saved = store.update(user["sub"], {**changes, "email": user.get("email", "")})
     return build_profile(user, saved)
 
 
