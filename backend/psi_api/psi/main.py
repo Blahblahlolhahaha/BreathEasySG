@@ -6,6 +6,7 @@ import os
 import time
 from re import X
 from fastapi import Cookie, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
@@ -19,6 +20,12 @@ class Coords(BaseModel):
 
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"], #requests from local frontend
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type","Accept"],
+)
 handler = Mangum(app)
 tz_plus_8 = timezone(timedelta(hours=8))
 

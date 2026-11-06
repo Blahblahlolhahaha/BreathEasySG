@@ -11,7 +11,9 @@ ellipsoidal/WGS84 distances or duplicate the production haversine formula.
 import math
 import unittest
 
-from psi.main import Coords, calculate_distance
+from psi.main import Coords, calculate_distance, nearest_region, retrieve_cache
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 
 EARTH_RADIUS_KM = 6371.0
@@ -84,6 +86,185 @@ class CalculateDistanceTests(unittest.TestCase):
     def test_london_to_new_york(self):
         # Independent Cartesian-vector reference (see module docstring).
         self.assert_distance((51.5074, -0.1278), (40.7128, -74.0060), 5570.222179737958)
+
+class NearestRegionTests(unittest.TestCase):
+    def test_returns_only_region_when_one_region_exists(self):
+        user_coords = Coords(latitude=1.30, longitude=103.80)
+        regions = [
+            {
+                "name": "Central",
+                "labelLocation": {
+                    "latitude": 1.31,
+                    "longitude": 103.80
+                }
+            }
+        ]
+        result = nearest_region(user_coords, regions)
+        self.assertEqual(result["name"], "Central")
+
+    def test_returns_closest_region(self):
+        user_coords = Coords(latitude=1.30, longitude=103.80)
+        regions = [
+            {
+                "name": "North",
+                "labelLocation": {
+                    "latitude": 1.45,
+                    "longitude": 103.80
+                }
+            },
+            {
+                "name": "Central",
+                "labelLocation": {
+                    "latitude": 1.30,
+                    "longitude": 103.81
+                }
+            },
+            {
+                "name": "South",
+                "labelLocation": {
+                    "latitude": 1.25,
+                    "longitude": 103.80
+                }
+            }
+        ]
+        result = nearest_region(user_coords, regions)
+        self.assertEqual(result["name"], "Central")
+
+    def test_returns_first_region_when_distances_are_equal(self):
+        user_coords = Coords(latitude=1.30, longitude=103.80)
+        regions = [
+            {
+                "name": "North",
+                "labelLocation": {
+                    "latitude": 1.40,
+                    "longitude": 103.80
+                }
+            },
+            {
+                "name": "South",
+                "labelLocation": {
+                    "latitude": 1.20,
+                    "longitude": 103.80
+                }
+            }
+        ]
+        result = nearest_region(user_coords, regions)
+        self.assertEqual(result["name"], "North")
+
+
+class RetrieveCacheTests(unittest.TestCase):
+    def setUp(self):
+        self.tz = timezone(timedelta(hours=8))
+        self.now = datetime(2026, 11, 7, 10, 30, tzinfo=self.tz)
+
+    def make_cached_item(self, timestamp):
+        return {
+            "res": {
+                "data": {
+                    "items": [
+                        {
+                            "timestamp": timestamp,
+                            "readings": {
+                                "psi_twenty_four_hourly": {
+                                    "central": 25
+                                }
+                            }
+                        }
+                    ],
+                    "regionMetadata": []
+                }
+            },
+            "res_pm25": {
+                "data": {
+                    "items": [
+                        {
+                            "readings": {
+                                "pm25_one_hourly": {
+                                    "central": 10
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+
+    def test_returns_current_hour_cache(self):
+        timestamp = self.now.replace(
+            minute=0, second=0, microsecond=0
+        ).isoformat()
+
+        cached_item = self.make_cached_item(timestamp)
+
+        with patch("psi.main.table.get_item") as mock_get_item:
+            mock_get_item.return_value = {"Item": cached_item}
+
+            result = retrieve_cache(self.now)
+
+        self.assertEqual(result[0], cached_item["res"]["data"])
+        self.assertEqual(result[1], {"central": 25})
+        self.assertEqual(result[2], {"central": 10})
+
+        mock_get_item.assert_called_once_with(
+            Key={"id": 10},
+            ConsistentRead=True
+        )
+
+    def test_falls_back_to_previous_hour_when_cache_missing(self):
+        previous_hour = self.now.replace(
+            hour=9, minute=0, second=0, microsecond=0
+        )
+
+        cached_item = self.make_cached_item(
+            previous_hour.isoformat()
+        )
+
+        with patch("psi.main.table.get_item") as mock_get_item:
+            mock_get_item.side_effect = [
+                {},
+                {"Item": cached_item}
+            ]
+
+            result = retrieve_cache(self.now)
+
+        self.assertEqual(result[1], {"central": 25})
+        self.assertEqual(result[2], {"central": 10})
+
+        self.assertEqual(mock_get_item.call_count, 2)
+
+    def test_falls_back_when_cache_timestamp_is_stale(self):
+        previous_hour = self.now.replace(
+            hour=9, minute=0, second=0, microsecond=0
+        )
+
+        cached_item = self.make_cached_item(
+            previous_hour.isoformat()
+        )
+
+        with patch("psi.main.table.get_item") as mock_get_item:
+            mock_get_item.side_effect = [
+                {"Item": cached_item},
+                {"Item": cached_item}
+            ]
+
+            result = retrieve_cache(self.now)
+
+        self.assertEqual(result[1], {"central": 25})
+        self.assertEqual(result[2], {"central": 10})
+
+        self.assertEqual(mock_get_item.call_count, 2)
+
+    def test_returns_none_when_cache_unavailable(self):
+        with patch("psi.main.table.get_item") as mock_get_item:
+            mock_get_item.return_value = {}
+
+            result = retrieve_cache(self.now)
+
+        self.assertEqual(result, (None, None, None))
+        self.assertEqual(mock_get_item.call_count, 2)
+
+
+
 
 
 if __name__ == "__main__":
