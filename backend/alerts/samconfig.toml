@@ -19,7 +19,7 @@ confirm_changeset = true
 resolve_s3 = true
 s3_prefix = "alerts-service"
 region = "ap-southeast-1"
-parameter_overrides = "UserPoolArn=\"arn:aws:cognito-idp:ap-southeast-1:778436623523:userpool/ap-southeast-1_AgBeTCbeW\" UsersTableName=\"breatheasy-users-UsersTable-1CMT77EX6BM8W\" PSIApi=\"https://qnbr854gnd.execute-api.ap-southeast-1.amazonaws.com/Prod/api/psi\" DynamoEndpoint=\"\" DevUserId=\"\""
+parameter_overrides = "UserPoolArn=\"arn:aws:cognito-idp:ap-southeast-1:778436623523:userpool/ap-southeast-1_AgBeTCbeW\" UsersTableName=\"breatheasy-users-UsersTable-1CMT77EX6BM8W\" AlertQueueUrl=\"https://sqs.ap-southeast-1.amazonaws.com/778436623523/breatheasy-notifications-AlertQueue-qpx1UnIW22Eu\" AlertQueueArn=\"arn:aws:sqs:ap-southeast-1:778436623523:breatheasy-notifications-AlertQueue-qpx1UnIW22Eu\" PSIApi=\"https://qnbr854gnd.execute-api.ap-southeast-1.amazonaws.com/Prod/api/psi\" DynamoEndpoint=\"\" DevUserId=\"\""
 image_repositories = []
 
 [default.package.parameters]
