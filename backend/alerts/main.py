@@ -297,20 +297,20 @@ async def check_alerts(alert_check: AlertCheck, request: fastapi.Request):
     save_alert_state(user["sub"], state)
 
     # # Send newly triggered alerts to Notifications
-    # for alert in response.new_alerts:
-    #     send_notification_event(
-    #         user_id=user["sub"],
-    #         event_type="THRESHOLD_BREACH",
-    #         alert=alert,
-    #     )
+    for alert in response.new_alerts:
+        send_notification_event(
+            user_id=user["sub"],
+            event_type="THRESHOLD_BREACH",
+            alert=alert,
+        )
 
     # # Send recovery alerts to Notifications
-    # for alert in response.recovered:
-    #     send_notification_event(
-    #         user_id=user["sub"],
-    #         event_type="BACK_TO_NORMAL",
-    #         alert=alert,
-    #     )
+    for alert in response.recovered:
+        send_notification_event(
+            user_id=user["sub"],
+            event_type="BACK_TO_NORMAL",
+            alert=alert,
+        )
 
     return response
 
