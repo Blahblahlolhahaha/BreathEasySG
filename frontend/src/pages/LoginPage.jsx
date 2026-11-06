@@ -6,7 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import "./LoginPage.css";
 
 export default function LoginPage() {
-  const { signIn, signUp, confirmSignUp, resendCode } = useAuth();
+  const { signIn, signUp, confirmSignUp, resendCode, completeNewPassword} = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -20,6 +20,9 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [pendingCognitoUser, setPendingCognitoUser] = useState(null);
 
   const returnTo = location.state?.from?.pathname || "/dashboard";
 
@@ -40,7 +43,12 @@ export default function LoginPage() {
     e.preventDefault();
     run(async () => {
       try {
-        await signIn(email, password);
+        const result = await signIn(email, password);
+        if (result.status === "NEW_PASSWORD_REQUIRED") {
+          setPendingCognitoUser(result.cognitoUser);
+          setMode("newPassword");
+          return;
+        }
       } catch (err) {
         if (err.code === "UserNotConfirmedException") {
           await resendCode(email);
@@ -52,6 +60,21 @@ export default function LoginPage() {
         }
         throw err;
       }
+      navigate(returnTo, { replace: true });
+    });
+  };
+
+  const handleNewPassword = (e) => {
+    e.preventDefault();
+
+    if (newPassword !== confirmNewPassword) {
+      setError("The passwords do not match.");
+      return;
+    }
+
+    run(async () => {
+      await completeNewPassword(pendingCognitoUser, newPassword, name);
+      setPendingCognitoUser(null);
       navigate(returnTo, { replace: true });
     });
   };
@@ -97,6 +120,7 @@ export default function LoginPage() {
           {mode === "login" && "Log in"}
           {mode === "signup" && "Create your account"}
           {mode === "confirm" && "Check your email"}
+          {mode === "newPassword" && "Set a new password"}
         </h1>
 
         {mode === "login" && (
@@ -126,6 +150,49 @@ export default function LoginPage() {
             </button>
           </form>
         )}
+
+        {mode === "newPassword" && (
+            <form className="auth-form" onSubmit={handleNewPassword}>
+              <label className="auth-field">
+                Name
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoComplete="name"
+                  required
+                />
+              </label>
+
+              <label className="auth-field">
+                New password
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </label>
+
+              <label className="auth-field">
+                Confirm new password
+                <input
+                  type="password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </label>
+
+              <button className="btn" type="submit" disabled={busy}>
+                {busy ? "Updating password…" : "Set new password"}
+              </button>
+            </form>
+          )}
 
         {mode === "signup" && (
           <form className="auth-form" onSubmit={handleSignup}>

@@ -99,19 +99,41 @@ export function AuthProvider({ children }) {
 
       signIn: (email, password) =>
         new Promise((resolve, reject) => {
+          const cognitoUser = makeUser(email);
+
           const details = new AuthenticationDetails({
             Username: cleanEmail(email),
             Password: password,
           });
-          makeUser(email).authenticateUser(details, {
+
+          cognitoUser.authenticateUser(details, {
             onSuccess: (session) => {
               setUser(userFromSession(session));
-              resolve();
+              resolve({ status: "SUCCESS" });
             },
             onFailure: reject,
-            newPasswordRequired: () =>
-              reject(new Error("A new password is required for this account.")),
+            newPasswordRequired: () => {
+              resolve({
+                status: "NEW_PASSWORD_REQUIRED",
+                cognitoUser,
+              });
+            },
           });
+        }),
+
+      completeNewPassword: (cognitoUser, newPassword, name) =>
+        new Promise((resolve, reject) => {
+          cognitoUser.completeNewPasswordChallenge(
+            newPassword,
+            {name: name.trim()},
+            {
+              onSuccess: (session) => {
+                setUser(userFromSession(session));
+                resolve();
+              },
+              onFailure: reject,
+            },
+          );
         }),
 
       signOut: () => {

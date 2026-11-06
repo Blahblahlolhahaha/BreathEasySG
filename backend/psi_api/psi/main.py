@@ -22,7 +22,7 @@ class Coords(BaseModel):
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], #requests from local frontend
+    allow_origins=["http://localhost:5173","https://dev-integration-alerts-notifications-enhancements.d246hw8ikeq45d.amplifyapp.com"], #requests from local frontend
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type","Accept"],
 )
