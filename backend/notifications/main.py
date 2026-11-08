@@ -121,7 +121,7 @@ def send_push(subscription, title, body):
         },
     )
     
-def send_email(to_email, title, body):
+def send_email(to_email, title, body, html_body=None):
     """Sends an alert email using Amazon SES."""
 
     sender_email = os.environ.get("SES_SENDER_EMAIL")
@@ -132,8 +132,21 @@ def send_email(to_email, title, body):
     import boto3
     ses = boto3.client("ses")
 
+    email_body = {
+        "Text": {
+            "Data": body,
+            "Charset": "UTF-8"
+        }
+    }
+
+    if html_body:
+        email_body["Html"] = {
+            "Data": html_body,
+            "Charset": "UTF-8"
+        }
+
     ses.send_email(
-        Source=sender_email,
+        Source=f"BreatheEasy SG <{sender_email}>",
         Destination={
             "ToAddresses": [to_email]
         },
@@ -142,12 +155,7 @@ def send_email(to_email, title, body):
                 "Data": title,
                 "Charset": "UTF-8"
             },
-            "Body": {
-                "Text": {
-                    "Data": body,
-                    "Charset": "UTF-8"
-                }
-            }
+            "Body": email_body
         }
     )
 
@@ -234,7 +242,7 @@ def format_alert_message(alert: AlertEvent):
 
     if alert.eventType == "THRESHOLD_BREACH":
         return {
-            "title": "Air Quality Alert",
+            "title": "🚨 Air Quality Alert",
             "body": (
                 f"{metric} at {alert.locationName} is {alert.value}, "
                 f"above your threshold of {alert.limit}."
@@ -243,11 +251,330 @@ def format_alert_message(alert: AlertEvent):
 
     if alert.eventType == "BACK_TO_NORMAL":
         return {
-            "title": "Air Quality Back to Normal",
+            "title": "✅ Air Quality Back to Normal",
             "body": (
                 f"{metric} at {alert.locationName} is back to normal. "
                 f"Current level: {alert.value}."
             )
+        }
+
+    raise ValueError(
+        f"Unknown event type: {alert.eventType}"
+    )
+    
+def format_email_message(alert: AlertEvent):
+    """Formats a richer HTML message specifically for email."""
+
+    import html
+
+    metric_names = {
+        "pm25": "PM2.5",
+        "psi24": "PSI",
+    }
+
+    metric = metric_names.get(
+        alert.metric,
+        alert.metric.upper()
+    )
+
+    # Escape user-controlled/location text before inserting into HTML
+    location = html.escape(alert.locationName)
+    metric_html = html.escape(metric)
+
+    if alert.eventType == "THRESHOLD_BREACH":
+        title = "Air Quality Alert"
+
+        text = (
+            f"{metric} at {alert.locationName} is {alert.value}, "
+            f"above your threshold of {alert.limit}."
+        )
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7f6;
+            font-family: Arial, sans-serif;
+            color: #1f2937;
+        ">
+
+            <div style="
+                max-width: 560px;
+                margin: 30px auto;
+                background-color: #ffffff;
+                border-radius: 12px;
+                overflow: hidden;
+                border: 1px solid #e5e7eb;
+            ">
+
+                <!-- Header -->
+                <div style="
+                    padding: 24px 30px;
+                    background-color: #e8f5ee;
+                ">
+                    <div style="
+                        font-size: 22px;
+                        font-weight: bold;
+                        color: #176b4d;
+                    ">
+                        🌿 BreatheEasy SG
+                    </div>
+
+                    <div style="
+                        margin-top: 4px;
+                        font-size: 14px;
+                        color: #4b5563;
+                    ">
+                        Personalised air quality monitoring
+                    </div>
+                </div>
+
+                <!-- Content -->
+                <div style="padding: 30px;">
+
+                    <div style="
+                        display: inline-block;
+                        padding: 6px 12px;
+                        background-color: #fff1f0;
+                        color: #b42318;
+                        border-radius: 20px;
+                        font-size: 13px;
+                        font-weight: bold;
+                    ">
+                        AIR QUALITY ALERT
+                    </div>
+
+                    <h2 style="
+                        margin: 20px 0 8px;
+                        font-size: 22px;
+                    ">
+                        Your air quality threshold has been exceeded
+                    </h2>
+
+                    <p style="
+                        margin: 0;
+                        color: #6b7280;
+                        line-height: 1.6;
+                    ">
+                        📍 We detected elevated {metric_html} levels at
+                        <strong>{location}</strong>.
+                    </p>
+
+                    <!-- Reading Card -->
+                    <div style="
+                        margin: 26px 0;
+                        padding: 22px;
+                        background-color: #f8faf9;
+                        border-radius: 10px;
+                        border: 1px solid #e5e7eb;
+                    ">
+
+                        <div style="
+                            font-size: 13px;
+                            color: #6b7280;
+                            margin-bottom: 6px;
+                        ">
+                            CURRENT {metric_html}
+                        </div>
+
+                        <div style="
+                            font-size: 32px;
+                            font-weight: bold;
+                            color: #b42318;
+                        ">
+                            {alert.value}
+                        </div>
+
+                        <div style="
+                            margin-top: 16px;
+                            font-size: 14px;
+                            color: #4b5563;
+                        ">
+                            Your threshold:
+                            <strong>{alert.limit}</strong>
+                        </div>
+
+                    </div>
+
+                    <p style="
+                        line-height: 1.6;
+                        color: #4b5563;
+                    ">
+                        You may wish to reduce prolonged or strenuous
+                        outdoor activities until air quality improves.
+                    </p>
+
+                </div>
+
+                <!-- Footer -->
+                <div style="
+                    padding: 20px 30px;
+                    background-color: #f8faf9;
+                    border-top: 1px solid #e5e7eb;
+                    font-size: 12px;
+                    color: #6b7280;
+                    line-height: 1.5;
+                ">
+                    You're receiving this email because email notifications
+                    are enabled for your BreatheEasy SG account.
+                </div>
+
+            </div>
+
+        </body>
+        </html>
+        """
+
+        return {
+            "title": title,
+            "body": text,
+            "html": html_body,
+        }
+
+    if alert.eventType == "BACK_TO_NORMAL":
+        title = "Air Quality Back to Normal"
+
+        text = (
+            f"{metric} at {alert.locationName} is back to normal. "
+            f"Current level: {alert.value}."
+        )
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7f6;
+            font-family: Arial, sans-serif;
+            color: #1f2937;
+        ">
+
+            <div style="
+                max-width: 560px;
+                margin: 30px auto;
+                background-color: #ffffff;
+                border-radius: 12px;
+                overflow: hidden;
+                border: 1px solid #e5e7eb;
+            ">
+
+                <!-- Header -->
+                <div style="
+                    padding: 24px 30px;
+                    background-color: #e8f5ee;
+                ">
+                    <div style="
+                        font-size: 22px;
+                        font-weight: bold;
+                        color: #176b4d;
+                    ">
+                        🌿 BreatheEasy SG
+                    </div>
+
+                    <div style="
+                        margin-top: 4px;
+                        font-size: 14px;
+                        color: #4b5563;
+                    ">
+                        Personalised air quality monitoring
+                    </div>
+                </div>
+
+                <!-- Content -->
+                <div style="padding: 30px;">
+
+                    <div style="
+                        display: inline-block;
+                        padding: 6px 12px;
+                        background-color: #e8f5ee;
+                        color: #176b4d;
+                        border-radius: 20px;
+                        font-size: 13px;
+                        font-weight: bold;
+                    ">
+                        BACK TO NORMAL
+                    </div>
+
+                    <h2 style="
+                        margin: 20px 0 8px;
+                        font-size: 22px;
+                    ">
+                        Air quality has improved
+                    </h2>
+
+                    <p style="
+                        margin: 0;
+                        color: #6b7280;
+                        line-height: 1.6;
+                    ">
+                        Good news! {metric_html} at
+                        <strong>{location}</strong> is back within
+                        your preferred limit.
+                    </p>
+
+                    <!-- Reading Card -->
+                    <div style="
+                        margin: 26px 0;
+                        padding: 22px;
+                        background-color: #f8faf9;
+                        border-radius: 10px;
+                        border: 1px solid #e5e7eb;
+                    ">
+
+                        <div style="
+                            font-size: 13px;
+                            color: #6b7280;
+                            margin-bottom: 6px;
+                        ">
+                            CURRENT {metric_html}
+                        </div>
+
+                        <div style="
+                            font-size: 32px;
+                            font-weight: bold;
+                            color: #176b4d;
+                        ">
+                            {alert.value}
+                        </div>
+
+                    </div>
+
+                    <p style="
+                        line-height: 1.6;
+                        color: #4b5563;
+                    ">
+                        We'll continue monitoring the air quality and
+                        notify you if your threshold is exceeded again.
+                    </p>
+
+                </div>
+
+                <!-- Footer -->
+                <div style="
+                    padding: 20px 30px;
+                    background-color: #f8faf9;
+                    border-top: 1px solid #e5e7eb;
+                    font-size: 12px;
+                    color: #6b7280;
+                    line-height: 1.5;
+                ">
+                    You're receiving this email because email notifications
+                    are enabled for your BreatheEasy SG account.
+                </div>
+
+            </div>
+
+        </body>
+        </html>
+        """
+
+        return {
+            "title": title,
+            "body": text,
+            "html": html_body,
         }
 
     raise ValueError(
@@ -306,10 +633,13 @@ def sqs_handler(event, context):
             email = profile.get("email")
 
             if email:
+                email_message = format_email_message(alert)
+
                 send_email(
                     email,
-                    message["title"],
-                    message["body"]
+                    email_message["title"],
+                    email_message["body"],
+                    email_message["html"]
                 )
     return {
         "processed": len(event.get("Records", []))
