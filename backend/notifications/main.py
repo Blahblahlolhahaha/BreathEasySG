@@ -18,10 +18,11 @@ app = fastapi.FastAPI(title="BreatheEasySG notifications API")
 
 
 # configure CORS
-origins = os.environ.get(
-    "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://localhost:5174"
-).split(",")
+origins = [
+    origin.strip()
+    for origin in os.environ["ALLOWED_ORIGINS"].split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,

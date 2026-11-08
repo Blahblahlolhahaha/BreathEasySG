@@ -14,7 +14,7 @@ Parameters:
 
   AllowedOrigins:
     Type: String
-    Default: http://localhost:5173,http://localhost:5174
+    Default: http://localhost:5173,http://localhost:5174,https://breatheeasysg.d246hw8ikeq45d.amplifyapp.com
     Description: Frontend origins allowed to call the notifications API
 
   VapidPrivateKey:

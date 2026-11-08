@@ -8,15 +8,14 @@ import requests
 from mangum import Mangum
 from pydantic import BaseModel
 
-from fastapi.middleware.cors import CORSMiddleware
-
 app = fastapi.FastAPI()
 
 # configure CORS
-origins = os.environ.get(
-    "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://localhost:5174"
-).split(",")
+origins = [
+    origin.strip()
+    for origin in os.environ["ALLOWED_ORIGINS"].split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -209,10 +208,14 @@ def send_notification_event(
         "locationName": alert.label or alert.place_id,
     }
 
-    _sqs.send_message(
+    print(f"Sending notification to SQS: {message}")
+
+    result = _sqs.send_message(
         QueueUrl=ALERT_QUEUE_URL,
         MessageBody=json.dumps(message),
     )
+
+    print(f"SQS message sent. MessageId: {result.get('MessageId')}")
 
 
 # ---------- endpoint ----------

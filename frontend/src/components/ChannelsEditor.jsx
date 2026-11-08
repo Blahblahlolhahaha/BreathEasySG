@@ -19,7 +19,9 @@ export default function ChannelsEditor({ value, onChange, email }) {
     let ok = false;
     try {
       ok = await registerPush();
-    } catch {
+    } catch(error) {
+      console.error("Push registration failed:", error);
+      console.error("Error details:", error?.message);
       ok = false;
     }
     setBusy(false);

@@ -26,6 +26,10 @@ Parameters:
   AlertQueueArn:
     Type: String
     Description: ARN of the SQS queue used for notification events
+  AllowedOrigins:
+    Type: String
+    Default: http://localhost:5173,http://localhost:5174,https://breatheeasysg.d246hw8ikeq45d.amplifyapp.com
+    Description: Website addresses allowed to call this API (comma-separated, no spaces)
 
 Globals:
   Function:
@@ -63,6 +67,7 @@ Resources:
           DYNAMODB_ENDPOINT: !Ref DynamoEndpoint
           DEV_USER_ID: !Ref DevUserId
           ALERT_QUEUE_URL: !Ref AlertQueueUrl
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
       Policies:
         - Statement:
             - Effect: Allow

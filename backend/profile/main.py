@@ -14,7 +14,12 @@ from pydantic import BaseModel, Field
 app = fastapi.FastAPI(title="BreathEasySG profile API")
 
 # The website is allowed to call this API from these addresses (comma-separated in ALLOWED_ORIGINS).
-origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174").split(",")
+origins = [
+    origin.strip()
+    for origin in os.environ["ALLOWED_ORIGINS"].split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
