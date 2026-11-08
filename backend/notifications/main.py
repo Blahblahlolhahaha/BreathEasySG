@@ -263,7 +263,6 @@ def format_alert_message(alert: AlertEvent):
     )
     
 def format_email_message(alert: AlertEvent):
-    """Formats a richer HTML message specifically for email."""
 
     import html
 
@@ -277,7 +276,6 @@ def format_email_message(alert: AlertEvent):
         alert.metric.upper()
     )
 
-    # Escape user-controlled/location text before inserting into HTML
     location = html.escape(alert.locationName)
     metric_html = html.escape(metric)
 
@@ -294,134 +292,171 @@ def format_email_message(alert: AlertEvent):
         <html>
         <body style="
             margin: 0;
-            padding: 0;
-            background-color: #f5f7f6;
-            font-family: Arial, sans-serif;
-            color: #1f2937;
+            padding: 40px 20px;
+            background-color: #f4f6f5;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #17201c;
         ">
 
+        <div style="
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border: 1px solid #dfe5e1;
+        ">
+
+            <!-- Header -->
             <div style="
-                max-width: 560px;
-                margin: 30px auto;
-                background-color: #ffffff;
-                border-radius: 12px;
-                overflow: hidden;
-                border: 1px solid #e5e7eb;
+                padding: 28px 32px 24px;
+                border-bottom: 3px solid #176b4d;
             ">
-
-                <!-- Header -->
                 <div style="
-                    padding: 24px 30px;
-                    background-color: #e8f5ee;
+                    font-size: 23px;
+                    font-weight: 700;
+                    color: #176b4d;
+                    letter-spacing: -0.4px;
                 ">
-                    <div style="
-                        font-size: 22px;
-                        font-weight: bold;
-                        color: #176b4d;
-                    ">
-                        🌿 BreatheEasy SG
-                    </div>
-
-                    <div style="
-                        margin-top: 4px;
-                        font-size: 14px;
-                        color: #4b5563;
-                    ">
-                        Personalised air quality monitoring
-                    </div>
+                    🌿 BreatheEasy SG
                 </div>
 
-                <!-- Content -->
-                <div style="padding: 30px;">
-
-                    <div style="
-                        display: inline-block;
-                        padding: 6px 12px;
-                        background-color: #fff1f0;
-                        color: #b42318;
-                        border-radius: 20px;
-                        font-size: 13px;
-                        font-weight: bold;
-                    ">
-                        AIR QUALITY ALERT
-                    </div>
-
-                    <h2 style="
-                        margin: 20px 0 8px;
-                        font-size: 22px;
-                    ">
-                        Your air quality threshold has been exceeded
-                    </h2>
-
-                    <p style="
-                        margin: 0;
-                        color: #6b7280;
-                        line-height: 1.6;
-                    ">
-                        📍 We detected elevated {metric_html} levels at
-                        <strong>{location}</strong>.
-                    </p>
-
-                    <!-- Reading Card -->
-                    <div style="
-                        margin: 26px 0;
-                        padding: 22px;
-                        background-color: #f8faf9;
-                        border-radius: 10px;
-                        border: 1px solid #e5e7eb;
-                    ">
-
-                        <div style="
-                            font-size: 13px;
-                            color: #6b7280;
-                            margin-bottom: 6px;
-                        ">
-                            CURRENT {metric_html}
-                        </div>
-
-                        <div style="
-                            font-size: 32px;
-                            font-weight: bold;
-                            color: #b42318;
-                        ">
-                            {alert.value}
-                        </div>
-
-                        <div style="
-                            margin-top: 16px;
-                            font-size: 14px;
-                            color: #4b5563;
-                        ">
-                            Your threshold:
-                            <strong>{alert.limit}</strong>
-                        </div>
-
-                    </div>
-
-                    <p style="
-                        line-height: 1.6;
-                        color: #4b5563;
-                    ">
-                        You may wish to reduce prolonged or strenuous
-                        outdoor activities until air quality improves.
-                    </p>
-
-                </div>
-
-                <!-- Footer -->
                 <div style="
-                    padding: 20px 30px;
-                    background-color: #f8faf9;
-                    border-top: 1px solid #e5e7eb;
+                    margin-top: 6px;
+                    font-size: 11px;
+                    color: #77817c;
+                    letter-spacing: 1.2px;
+                    text-transform: uppercase;
+                ">
+                    Personalised Air Quality Monitoring
+                </div>
+            </div>
+
+            <!-- Main -->
+            <div style="padding: 36px 32px 32px;">
+
+                <div style="
                     font-size: 12px;
-                    color: #6b7280;
-                    line-height: 1.5;
+                    font-weight: 700;
+                    color: #b42318;
+                    letter-spacing: 1px;
+                    margin-bottom: 14px;
                 ">
-                    You're receiving this email because email notifications
-                    are enabled for your BreatheEasy SG account.
+                    🚨 AIR QUALITY ALERT
+                </div>
+
+                <div style="
+                    font-size: 26px;
+                    line-height: 1.25;
+                    font-weight: 700;
+                    letter-spacing: -0.5px;
+                ">
+                    {metric_html} threshold exceeded
+                </div>
+
+                <div style="
+                    margin-top: 12px;
+                    font-size: 20px;
+                    color: #65706a;
+                ">
+                    📍 {location}
+                </div>
+
+                <!-- Metrics -->
+                <table
+                    width="100%"
+                    cellpadding="0"
+                    cellspacing="0"
+                    style="
+                        margin-top: 10px;
+                        border-top: 1px solid #dfe5e1;
+                        border-bottom: 1px solid #dfe5e1;
+                    "
+                >
+                    <tr>
+
+                        <td style="
+                            width: 50%;
+                            padding: 24px 0;
+                            vertical-align: top;
+                            border-right: 1px solid #dfe5e1;
+                        ">
+                            <div style="
+                                font-size: 11px;
+                                color: #77817c;
+                                font-weight: 700;
+                                letter-spacing: 0.8px;
+                            ">
+                                CURRENT {metric_html}
+                            </div>
+
+                            <div style="
+                                margin-top: 8px;
+                                font-size: 36px;
+                                font-weight: 700;
+                                color: #b42318;
+                            ">
+                                {alert.value}
+                            </div>
+                        </td>
+
+                        <td style="
+                            width: 50%;
+                            padding: 24px 0 24px 28px;
+                            vertical-align: top;
+                        ">
+                            <div style="
+                                font-size: 11px;
+                                color: #77817c;
+                                font-weight: 700;
+                                letter-spacing: 0.8px;
+                            ">
+                                YOUR THRESHOLD
+                            </div>
+
+                            <div style="
+                                margin-top: 8px;
+                                font-size: 36px;
+                                font-weight: 700;
+                                color: #17201c;
+                            ">
+                                {alert.limit}
+                            </div>
+                        </td>
+
+                    </tr>
+                </table>
+
+                <!-- Explanation -->
+                <div style="
+                    margin-top: 28px;
+                    font-size: 15px;
+                    line-height: 1.7;
+                    color: #4e5953;
+                ">
+                    The {metric_html} level at <strong>{location}</strong> has exceeded
+                    your preferred threshold.
+                    <br><br>
+                    You may wish to <strong>reduce</strong> prolonged or strenuous
+                    outdoor activities until air quality improves.
                 </div>
 
             </div>
+
+            <!-- Footer -->
+            <div style="
+                padding: 20px 32px;
+                background-color: #f7f9f8;
+                border-top: 1px solid #dfe5e1;
+                font-size: 11px;
+                line-height: 1.6;
+                color: #7a847f;
+            ">
+                BreatheEasy SG · Air quality monitoring
+                <br>
+                You're receiving this because email notifications are enabled
+                for your account.
+            </div>
+
+        </div>
 
         </body>
         </html>
@@ -446,126 +481,133 @@ def format_email_message(alert: AlertEvent):
         <html>
         <body style="
             margin: 0;
-            padding: 0;
-            background-color: #f5f7f6;
-            font-family: Arial, sans-serif;
-            color: #1f2937;
+            padding: 40px 20px;
+            background-color: #f4f6f5;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #17201c;
         ">
 
+        <div style="
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border: 1px solid #dfe5e1;
+        ">
+
+            <!-- Header -->
             <div style="
-                max-width: 560px;
-                margin: 30px auto;
-                background-color: #ffffff;
-                border-radius: 12px;
-                overflow: hidden;
-                border: 1px solid #e5e7eb;
+                padding: 28px 32px 24px;
+                border-bottom: 3px solid #176b4d;
             ">
-
-                <!-- Header -->
                 <div style="
-                    padding: 24px 30px;
-                    background-color: #e8f5ee;
+                    font-size: 23px;
+                    font-weight: 700;
+                    color: #176b4d;
+                    letter-spacing: -0.4px;
                 ">
-                    <div style="
-                        font-size: 22px;
-                        font-weight: bold;
-                        color: #176b4d;
-                    ">
-                        🌿 BreatheEasy SG
-                    </div>
-
-                    <div style="
-                        margin-top: 4px;
-                        font-size: 14px;
-                        color: #4b5563;
-                    ">
-                        Personalised air quality monitoring
-                    </div>
+                    🌿 BreatheEasy SG
                 </div>
 
-                <!-- Content -->
-                <div style="padding: 30px;">
-
-                    <div style="
-                        display: inline-block;
-                        padding: 6px 12px;
-                        background-color: #e8f5ee;
-                        color: #176b4d;
-                        border-radius: 20px;
-                        font-size: 13px;
-                        font-weight: bold;
-                    ">
-                        BACK TO NORMAL
-                    </div>
-
-                    <h2 style="
-                        margin: 20px 0 8px;
-                        font-size: 22px;
-                    ">
-                        Air quality has improved
-                    </h2>
-
-                    <p style="
-                        margin: 0;
-                        color: #6b7280;
-                        line-height: 1.6;
-                    ">
-                        Good news! {metric_html} at
-                        <strong>{location}</strong> is back within
-                        your preferred limit.
-                    </p>
-
-                    <!-- Reading Card -->
-                    <div style="
-                        margin: 26px 0;
-                        padding: 22px;
-                        background-color: #f8faf9;
-                        border-radius: 10px;
-                        border: 1px solid #e5e7eb;
-                    ">
-
-                        <div style="
-                            font-size: 13px;
-                            color: #6b7280;
-                            margin-bottom: 6px;
-                        ">
-                            CURRENT {metric_html}
-                        </div>
-
-                        <div style="
-                            font-size: 32px;
-                            font-weight: bold;
-                            color: #176b4d;
-                        ">
-                            {alert.value}
-                        </div>
-
-                    </div>
-
-                    <p style="
-                        line-height: 1.6;
-                        color: #4b5563;
-                    ">
-                        We'll continue monitoring the air quality and
-                        notify you if your threshold is exceeded again.
-                    </p>
-
-                </div>
-
-                <!-- Footer -->
                 <div style="
-                    padding: 20px 30px;
-                    background-color: #f8faf9;
-                    border-top: 1px solid #e5e7eb;
+                    margin-top: 6px;
+                    font-size: 11px;
+                    color: #77817c;
+                    letter-spacing: 1.2px;
+                    text-transform: uppercase;
+                ">
+                    Personalised Air Quality Monitoring
+                </div>
+            </div>
+
+            <!-- Main -->
+            <div style="padding: 36px 32px 32px;">
+
+                <div style="
                     font-size: 12px;
-                    color: #6b7280;
-                    line-height: 1.5;
+                    font-weight: 700;
+                    color: #176b4d;
+                    letter-spacing: 1px;
+                    margin-bottom: 14px;
                 ">
-                    You're receiving this email because email notifications
-                    are enabled for your BreatheEasy SG account.
+                    ✅ BACK TO NORMAL
+                </div>
+
+                <div style="
+                    font-size: 26px;
+                    line-height: 1.25;
+                    font-weight: 700;
+                    letter-spacing: -0.5px;
+                ">
+                    {metric_html} level is back to normal
+                </div>
+
+                <div style="
+                    margin-top: 12px;
+                    font-size: 20px;
+                    color: #65706a;
+                ">
+                    📍 {location}
+                </div>
+
+                <!-- Metric -->
+                <div style="
+                    margin-top: 10px;
+                    padding: 24px 0;
+                    border-top: 1px solid #dfe5e1;
+                    border-bottom: 1px solid #dfe5e1;
+                ">
+                    <div style="
+                        font-size: 11px;
+                        color: #77817c;
+                        font-weight: 700;
+                        letter-spacing: 0.8px;
+                    ">
+                        CURRENT {metric_html}
+                    </div>
+
+                    <div style="
+                        margin-top: 8px;
+                        font-size: 36px;
+                        font-weight: 700;
+                        color: #176b4d;
+                    ">
+                        {alert.value}
+                    </div>
+                </div>
+
+                <!-- Explanation -->
+                <div style="
+                    margin-top: 28px;
+                    font-size: 15px;
+                    line-height: 1.7;
+                    color: #4e5953;
+                ">
+                    Good news! The {metric_html} level at
+                    <strong>{location}</strong> is back within your
+                    preferred limit.
+                    <br><br>
+                    We'll continue <strong>monitoring</strong> the air quality
+                    and notify you if your threshold is exceeded again.
                 </div>
 
             </div>
+
+            <!-- Footer -->
+            <div style="
+                padding: 20px 32px;
+                background-color: #f7f9f8;
+                border-top: 1px solid #dfe5e1;
+                font-size: 11px;
+                line-height: 1.6;
+                color: #7a847f;
+            ">
+                BreatheEasy SG · Air quality monitoring
+                <br>
+                You're receiving this because email notifications are enabled
+                for your account.
+            </div>
+
+        </div>
 
         </body>
         </html>

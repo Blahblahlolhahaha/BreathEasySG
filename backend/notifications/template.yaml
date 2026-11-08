@@ -179,6 +179,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref PushSubscriptionsTable
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
           VAPID_PRIVATE_KEY: !Ref VapidPrivateKey
           VAPID_SUBJECT: !Ref VapidSubject
           PROFILE_TABLE_NAME: !Ref ProfileTableName
