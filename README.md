@@ -39,7 +39,6 @@ BreathEasySG/
 └── backend/
     ├── refresher/       scheduled job: fetches NEA readings into DynamoDB
     ├── psi_api/         GET /api/readings, POST /api/psi
-    ├── users/           users table
     ├── profile/         GET / PUT /api/me (settings and saved places)
     ├── alerts/          POST /api/alerts/check (threshold checks)
     └── notifications/   POST /api/push/subscribe + SQS worker (push and email)
@@ -78,7 +77,7 @@ cd backend/<service>
 sam build && sam deploy        # add --guided the first time
 ```
 
-Deploy in this order: `refresher` and `psi_api` → `users` and `profile` → `alerts` → `notifications`. Set `ALLOWED_ORIGINS` to the frontend's address. For notifications, also verify the SES sender email and set the VAPID keys.
+Deploy in this order: `refresher` and `psi_api` and `profile` → `alerts` → `notifications`. Set `ALLOWED_ORIGINS` to the frontend's address. For notifications, also verify the SES sender email and set the VAPID keys.
 
 ## Deploy the frontend
 
