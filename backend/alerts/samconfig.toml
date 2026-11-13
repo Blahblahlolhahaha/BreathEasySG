@@ -1,0 +1,35 @@
+# More information about the configuration file can be found here:
+# # https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+version = 0.1
+
+[default.global.parameters]
+stack_name = "alerts-service"
+region = "ap-southeast-1"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+s3_prefix = "alerts-service"
+region = "ap-southeast-1"
+parameter_overrides = "UserPoolArn=\"arn:aws:cognito-idp:ap-southeast-1:778436623523:userpool/ap-southeast-1_AgBeTCbeW\" UsersTableName=\"breatheasy-users-UsersTable-1CMT77EX6BM8W\" AlertQueueUrl=\"https://sqs.ap-southeast-1.amazonaws.com/778436623523/breatheasy-notifications-AlertQueue-qpx1UnIW22Eu\" AlertQueueArn=\"arn:aws:sqs:ap-southeast-1:778436623523:breatheasy-notifications-AlertQueue-qpx1UnIW22Eu\" PSIApi=\"https://qnbr854gnd.execute-api.ap-southeast-1.amazonaws.com/Prod/api/psi\" DynamoEndpoint=\"\" DevUserId=\"\""
+image_repositories = []
+
+[default.package.parameters]
+resolve_s3 = true
+
+[default.sync.parameters]
+watch = true
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+
+[default.local_start_lambda.parameters]
+warm_containers = "EAGER"

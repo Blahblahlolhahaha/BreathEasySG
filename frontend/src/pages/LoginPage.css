@@ -1,0 +1,43 @@
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+}
+.auth-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.auth-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+.auth-field input {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+}
+.auth-error {
+  color: var(--bad);
+  font-size: 0.9rem;
+}
+.auth-info {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.auth-switch {
+  margin-top: 14px;
+  font-size: 0.9rem;
+}
+.auth-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}

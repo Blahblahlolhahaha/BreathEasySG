@@ -1,0 +1,15 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "breatheasy-notifications"
+resolve_s3 = true
+s3_prefix = "breatheasy-notifications"
+region = "ap-southeast-1"
+profile = "default"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "ProfileTableName=\"breatheasy-users-UsersTable-1CMT77EX6BM8W\" UserPoolArn=\"arn:aws:cognito-idp:ap-southeast-1:778436623523:userpool/ap-southeast-1_AgBeTCbeW\" AllowedOrigins=\"http://localhost:5173,http://localhost:5174,https://breatheeasysg.d246hw8ikeq45d.amplifyapp.com\" VapidSubject=\"mailto:breatheasy.corp@gmail.com\" SESFromEmail=\"alerts@breatheasy.jfoo.bar\""
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-southeast-1"

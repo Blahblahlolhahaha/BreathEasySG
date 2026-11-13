@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: BreathEasySG profile API (GET and PUT /api/me) with a DynamoDB table for user profiles
+
+Parameters:
+  UserPoolArn:
+    Type: String
+    Description: ARN of the Cognito user pool that signs users in
+  ExistingTableName:
+    Type: String
+    Default: ""
+    Description: Name of a users table that already exists. Leave empty to let this template create one.
+  AllowedOrigins:
+    Type: String
+    Default: http://localhost:5173,http://localhost:5174,https://breatheeasysg.d246hw8ikeq45d.amplifyapp.com
+    Description: Website addresses allowed to call this API (comma-separated, no spaces)
+
+Conditions:
+  CreateTable: !Equals [!Ref ExistingTableName, ""]
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 256
+
+Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Condition: CreateTable
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+
+  ProfileApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'GET,PUT,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !Ref UserPoolArn
+
+  ProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: main.handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          TABLE_NAME: !If [CreateTable, !Ref UsersTable, !Ref ExistingTableName]
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !Sub
+                - arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}
+                - TableName:
+                    !If [CreateTable, !Ref UsersTable, !Ref ExistingTableName]
+      Events:
+        GetMe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ProfileApi
+            Path: /api/me
+            Method: get
+        PutMe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ProfileApi
+            Path: /api/me
+            Method: put
+
+Outputs:
+  ProfileApiUrl:
+    Description: Put this in VITE_PROFILE_API_URL (or VITE_API_URL once everything shares one API)
+    Value: !Sub "https://${ProfileApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod"
+  UsersTableName:
+    Description: DynamoDB table holding the profiles
+    Value: !If [CreateTable, !Ref UsersTable, !Ref ExistingTableName]

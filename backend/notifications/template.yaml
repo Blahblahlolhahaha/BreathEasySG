@@ -1,0 +1,245 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: BreatheEasySG notifications API
+
+Parameters:
+
+  ProfileTableName:
+    Type: String
+    Description: Name of the existing profile DynamoDB table
+
+  UserPoolArn:
+    Type: String
+    Description: ARN of the Cognito user pool
+
+  AllowedOrigins:
+    Type: String
+    Default: http://localhost:5173,http://localhost:5174,https://breatheeasysg.d246hw8ikeq45d.amplifyapp.com
+    Description: Frontend origins allowed to call the notifications API
+
+  VapidPrivateKey:
+    Type: String
+    NoEcho: true
+    Description: Private VAPID key used to send browser push notifications
+
+  VapidSubject:
+    Type: String
+    Default: mailto:breatheasysg@example.com
+    Description: Contact identifier used for VAPID
+
+  SESFromEmail:
+    Type: String
+    Description: Verified SES email address used to send alert emails
+
+
+Globals:
+
+  Function:
+    Timeout: 10
+    MemorySize: 256
+
+
+Resources:
+
+  # =========================================================
+  # DynamoDB
+  # Stores browser push subscriptions
+  # =========================================================
+
+  PushSubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: userID
+          AttributeType: S
+
+        - AttributeName: endpoint
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: userID
+          KeyType: HASH
+
+        - AttributeName: endpoint
+          KeyType: RANGE
+
+
+  # =========================================================
+  # SQS
+  # Alert events from the Alerts component arrive here
+  # =========================================================
+
+  AlertDeadLetterQueue:
+    Type: AWS::SQS::Queue
+
+
+  AlertQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+
+      # Must be longer than the Lambda timeout.
+      VisibilityTimeout: 60
+
+      # Failed messages are retried.
+      # After 3 failed receives, move them to the DLQ.
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt AlertDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+
+  # =========================================================
+  # API Gateway
+  # Used by the frontend to register push subscriptions
+  # =========================================================
+
+  NotificationsApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !Ref UserPoolArn
+
+
+  # =========================================================
+  # API Lambda
+  #
+  # Browser
+  #   -> API Gateway
+  #   -> POST /api/push/subscribe
+  #   -> DynamoDB
+  # =========================================================
+
+  NotificationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: main.handler
+      Runtime: python3.12
+
+      Architectures:
+        - x86_64
+
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PushSubscriptionsTable
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt PushSubscriptionsTable.Arn
+
+      Events:
+
+        SubscribePush:
+          Type: Api
+          Properties:
+            RestApiId: !Ref NotificationsApi
+            Path: /api/push/subscribe
+            Method: post
+
+
+  # =========================================================
+  # Notification Worker Lambda
+  #
+  # Alerts component
+  #   -> SQS
+  #   -> this Lambda
+  #   -> DynamoDB
+  #   -> Web Push
+  #
+  # Sends alerts through Web Push and Amazon SES.
+  # =========================================================
+
+  NotificationWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: main.sqs_handler
+      Runtime: python3.12
+
+      Architectures:
+        - x86_64
+
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref PushSubscriptionsTable
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+          VAPID_PRIVATE_KEY: !Ref VapidPrivateKey
+          VAPID_SUBJECT: !Ref VapidSubject
+          PROFILE_TABLE_NAME: !Ref ProfileTableName
+          SES_SENDER_EMAIL: !Ref SESFromEmail
+
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource: !GetAtt PushSubscriptionsTable.Arn
+            
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ProfileTableName}"
+            
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+              Resource: "*"
+
+      Events:
+        AlertQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AlertQueue.Arn
+
+            # Process alerts individually.
+            # Makes retry behaviour simpler.
+            BatchSize: 1
+
+
+# =========================================================
+# Outputs
+# Useful values after deployment
+# =========================================================
+
+Outputs:
+
+  NotificationsApiUrl:
+    Description: URL of the notifications API
+    Value: !Sub "https://${NotificationsApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod"
+
+
+  PushSubscriptionsTableName:
+    Description: DynamoDB table storing browser push subscriptions
+    Value: !Ref PushSubscriptionsTable
+
+
+  AlertQueueUrl:
+    Description: SQS queue where the Alerts component sends alert events
+    Value: !Ref AlertQueue
+
+
+  AlertQueueArn:
+    Description: ARN of the Alerts SQS queue
+    Value: !GetAtt AlertQueue.Arn
+
+
+  AlertDeadLetterQueueUrl:
+    Description: Queue containing alert events that repeatedly failed
+    Value: !Ref AlertDeadLetterQueue
